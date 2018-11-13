@@ -231,6 +231,7 @@
     <Compile Include="EnDeCrypt.cs" />
     <Compile Include="Extensions\ConnectionStrings.cs" />
     <Compile Include="Extensions\Extensions.cs" />
+    <Compile Include="Extensions\ObjectExtensions.cs" />
     <Compile Include="Extensions\User.cs" />
     <Compile Include="Extensions\Dates.cs" />
     <Compile Include="Extensions\Validation.cs" />
