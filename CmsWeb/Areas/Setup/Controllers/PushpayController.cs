@@ -12,11 +12,30 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Mvc;
 using UtilityExtensions;
+using PushPay.Entities;
+using PushPay;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
     [RouteArea("Setup", AreaPrefix = "Pushpay")]
     public class PushpayController : Controller
+    {        
+        private PushpayConnection _pushpay;
+        private CMSDataContext _db;
+        public PushpayController(CMSDataContext db)
+        {
+
+            _db = db;
+            _pushpay = new PushpayConnection("","",_db,
+                Configuration.Current.PushpayAPIBaseUrl,
+                Configuration.Current.PushpayClientID,
+                Configuration.Current.PushpayClientSecret,
+                Configuration.Current.OAuth2AuthorizeEndpoint,
+                Configuration.Current.TouchpointAuthServer,
+                Configuration.Current.OAuth2TokenEndpoint);
+
+        }
+
     {
         //todo: Inheritance chain
         private readonly RequestManager RequestManager;
@@ -54,25 +73,22 @@ namespace CmsWeb.Areas.Setup.Controllers
         }
 
         [AllowAnonymous, Route("~/Pushpay/Complete")]
-        public async Task<ActionResult> Complete()
+        public async Task<ActionResult> Complete(string state)
         {
             string redirectUrl;
-            var tenantHost = Request["state"];
-            if (!Configuration.Current.IsDeveloperMode)
-            {
-                redirectUrl = "https://" + tenantHost + "." + Configuration.Current.OrgBaseDomain + "/Pushpay/Save";
-            }
-            else
-            {
-                redirectUrl = "http://" + Configuration.Current.TenantHostDev + "/Pushpay/Save";
-            }
+            var tenantHost = state;
+#if DEBUG
+            redirectUrl = "http://" + Configuration.Current.TenantHostDev + "/Pushpay/Save";
+#else
+            redirectUrl = "https://" + tenantHost + "." + Configuration.Current.OrgBaseDomain + "/Pushpay/Save";
+#endif            
 
             //Received authorization code from authorization server
             var authorizationCode = Request["code"];
             if (authorizationCode != null && authorizationCode != "")
             {
                 //Get code returned from Pushpay
-                var at = await AuthorizationCodeCallback(authorizationCode);
+                var at = await _pushpay.AuthorizationCodeCallback(authorizationCode);
                 return Redirect(redirectUrl + "?_at=" + at.access_token + "&_rt=" + at.refresh_token);
             }
             return Redirect("~/Home/Index");

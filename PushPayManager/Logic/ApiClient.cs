@@ -155,12 +155,12 @@ namespace PushPay
                     JSON = await response.Content.ReadAsStringAsync()
                 };
 
-                readyForProcessing = response.StatusCode == (HttpStatusCode)429;
+                readyForProcessing = response.StatusCode != (HttpStatusCode)429;
 
-                if (!readyForProcessing)
+                if (!readyForProcessing && response.Headers.Contains("retry-after"))
                 {
                     var retryHeader = response.Headers.GetValues("retry-after");
-                    var retryWindow = int.Parse(retryHeader.FirstOrDefault());
+                    var retryWindow = int.Parse(retryHeader?.FirstOrDefault());
 
                     PushPayRateLimiter.Instance.AddDelay(retryWindow);
                 }

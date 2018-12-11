@@ -5,11 +5,11 @@ using CmsData;
 using CmsData.Codes;
 using PushPay.ApiModels;
 
+
 namespace PushPay
 {
     class PushPayImport
     {
-        private PushpayConnection pushpay;
         private CMSDataContext db;
 
         private DateTime startDate;
@@ -17,21 +17,51 @@ namespace PushPay
         private bool InitialPass;
         private PushPayLog LastImport;
 
-        public async Task<int> Run(CMSDataContext dataContext)
+        //Pushpay
+        private PushpayConnection _pushpay;
+        private readonly string _access_token;
+        private readonly string _refresh_token;
+        private readonly string _pushpayAPIBaseUrl;
+        private readonly string _pushpayClientID;
+        private readonly string _pushpayClientSecret;
+        private readonly string _oAuth2AuthorizeEndpoint;
+        private readonly string _touchpointAuthServer;
+        private readonly string _oAuth2TokenEndpoint;
+
+
+        public PushPayImport(CMSDataContext dataContext, string pushpayAPIBaseUrl,
+            string pushpayClientID, string pushpayClientSecret, string oAuth2AuthorizeEndpoint,
+            string touchpointAuthServer, string oAuth2TokenEndpoint)
         {
             db = dataContext;
-            
+            _pushpayAPIBaseUrl = pushpayAPIBaseUrl;
+            _pushpayClientID = pushpayClientID;
+            _pushpayClientSecret = pushpayClientSecret;
+            _oAuth2AuthorizeEndpoint = oAuth2AuthorizeEndpoint;
+            _touchpointAuthServer = touchpointAuthServer;
+            _oAuth2TokenEndpoint = oAuth2TokenEndpoint;
+
+
             if (db.Setting("PushPayEnableImport"))
-            {
-                string access_token, refresh_token;
-                access_token = db.GetSetting("PushpayAccessToken", "");
-                refresh_token = db.GetSetting("PushpayRefreshToken", "");
-                pushpay = new PushpayConnection(access_token, refresh_token, db);
+            {                
+                _access_token = db.GetSetting("PushpayAccessToken", "");
+                _refresh_token = db.GetSetting("PushpayRefreshToken", "");
+                
+                _pushpay = new PushpayConnection(_access_token, _refresh_token, db,
+                _pushpayAPIBaseUrl,
+                _pushpayClientID,
+                _pushpayClientSecret,
+                _oAuth2AuthorizeEndpoint,
+                _touchpointAuthServer,
+                _oAuth2TokenEndpoint);
             }
-            else
-            {
-                return 0;
-            }
+
+            
+        }
+        public async Task<int> Run()
+        {
+            if (_pushpay is null)
+                return 0;                        
 #if DEBUG
             try
             {
@@ -53,7 +83,7 @@ namespace PushPay
         private async Task<int> RunInternal()
         {
             int Count = 0;
-            var MerchantList = await pushpay.GetMerchants();
+            var MerchantList = await _pushpay.GetMerchants();
             foreach (Merchant merchant in MerchantList)
             {
                 // initial pass - get last run data and start there
@@ -63,7 +93,7 @@ namespace PushPay
 
                 while (HasBatchesToProcess)
                 {
-                    BatchList batches = await pushpay.GetBatchesForMerchantSince(merchant.Key, startDate, OnBatchPage);
+                    BatchList batches = await _pushpay.GetBatchesForMerchantSince(merchant.Key, startDate, OnBatchPage);
                     int BatchPages = (batches.TotalPages.HasValue ? (int)batches.TotalPages : 1);
 
                     foreach (Batch batch in batches.Items)
@@ -75,7 +105,7 @@ namespace PushPay
 
                         while (HasPaymentsToProcess)
                         {
-                            PaymentList payments = await pushpay.GetPaymentsForBatch(merchant.Key, batch.Key, OnPaymentPage);
+                            PaymentList payments = await _pushpay.GetPaymentsForBatch(merchant.Key, batch.Key, OnPaymentPage);
                             int PaymentPages = (payments.TotalPages.HasValue ? (int)payments.TotalPages : 1);
 
                             foreach (Payment payment in payments.Items)

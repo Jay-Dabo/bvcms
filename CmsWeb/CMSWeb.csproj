@@ -854,6 +854,7 @@
     <Compile Include="Code\DateEmptyOrValidAttribute.cs" />
     <Compile Include="Code\DecimalModelBinder.cs" />
     <Compile Include="Code\JsonNetValueProviderFactory.cs" />
+    <Compile Include="Code\ParameterizedConstructorModelBinder.cs" />
     <Compile Include="Code\ReportsMenu.cs" />
     <Compile Include="Code\UserInputException.cs" />
     <Compile Include="Common\Configuration.cs" />
@@ -3277,6 +3278,10 @@
     <ProjectReference Include="..\ImageData\ImageData.csproj">
       <Project>{512DA381-E81B-4121-B978-FC850EC88353}</Project>
       <Name>ImageData</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\PushPayManager\PushPayManager.csproj">
+      <Project>{4adb1db1-5f64-4f04-94f6-d76cb640a6e1}</Project>
+      <Name>PushPayManager</Name>
     </ProjectReference>
     <ProjectReference Include="..\UtilityExtensions\UtilityExtensions.csproj">
       <Project>{C504E3D2-5498-451B-BF82-309623706F11}</Project>
