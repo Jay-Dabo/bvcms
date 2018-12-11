@@ -21,10 +21,11 @@ using System.Diagnostics;
 using System.Text;
 using CmsData.Codes;
 using System.Text.RegularExpressions;
+using CmsData.Common;
 
 namespace CmsData
 {
-    public partial class CMSDataContext
+    public partial class CMSDataContext : IDataContext
     {
         const string STR_System = "System";
 
@@ -49,7 +50,12 @@ namespace CmsData
         }
 #endif
         internal string ConnectionString;
-        public static CMSDataContext Create(string connStr, string host)
+        public CMSDataContext Create(string connStr, string host)
+        {
+            Create(connStr, host, true);
+            throw new NotImplementedException();
+        }
+        public static CMSDataContext Create(string connStr, string host, bool instanciated)
         {
             return new CMSDataContext(connStr)
             {
@@ -827,36 +833,9 @@ This search uses multiple steps which cannot be duplicated in a single query.
             var result = this.ExecuteMethodCall(this, ((MethodInfo)(MethodInfo.GetCurrentMethod())), orgid, pid);
             return ((int)(result.ReturnValue));
         }
-        public class TopGiver
-        {
-            public int PeopleId;
-            public string Name;
-            public decimal Amount;
-        }
-        public class AttendMeetingInfo1
-        {
-            public AttendMeetingInfo2 info;
-            public Attend AttendanceOrg;
-            public Attend Attendance;
-            public Meeting Meeting;
-            public List<Attend> VIPAttendance;
-            public OrganizationMember BFCMember;
-            public Attend BFCAttendance;
-            public Meeting BFCMeeting;
-            public int path;
-        }
-        public class AttendMeetingInfo2
-        {
-            public int? AttendedElsewhere { get; set; }
-            public int? MemberTypeId { get; set; }
-            //public bool? IsRegularHour { get; set; }
-            //public int? ScheduleId { get; set; }
-            //public bool? IsSameHour { get; set; }
-            public bool? IsOffSite { get; set; }
-            public bool? IsRecentVisitor { get; set; }
-            public string Name { get; set; }
-            public int? BFClassId { get; set; }
-        }
+        
+        
+        
 
         [Function(Name = "dbo.AttendMeetingInfo")]
         [ResultType(typeof(AttendMeetingInfo2))]
@@ -875,7 +854,7 @@ This search uses multiple steps which cannot be duplicated in a single query.
         {
             var r = AttendMeetingInfo(MeetingId, PeopleId);
             var o = new AttendMeetingInfo1();
-            o.info = r.GetResult<CMSDataContext.AttendMeetingInfo2>().First();
+            o.info = r.GetResult<AttendMeetingInfo2>().First();
             o.Attendance = r.GetResult<Attend>().FirstOrDefault();
             if (o.Attendance != null)
             {
@@ -903,10 +882,7 @@ This search uses multiple steps which cannot be duplicated in a single query.
             o.BFCMeeting = r.GetResult<Meeting>().FirstOrDefault();
             return o;
         }
-        public class RecordAttendInfo
-        {
-            public string ret { get; set; }
-        }
+        
         [Function(Name = "dbo.RecordAttend")]
         [ResultType(typeof(RecordAttendInfo))]
         private IMultipleResults RecordAttend([Parameter(DbType = "Int")] int? meetingId, [Parameter(DbType = "Int")] int? peopleId, [Parameter(DbType = "Bit")] bool? present)
@@ -1633,6 +1609,7 @@ This search uses multiple steps which cannot be duplicated in a single query.
 
         internal bool FromActiveRecords { get; set; }
         public bool FromBatch { get; set; }
+        bool IDataContext.FromActiveRecords { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
         public IGateway Gateway(bool testing = false, string usegateway = null)
         {
@@ -1742,6 +1719,38 @@ This search uses multiple steps which cannot be duplicated in a single query.
         {
             var result = ExecuteMethodCall(this, (MethodInfo)MethodBase.GetCurrentMethod(), ip, id);
             return ((int?)(result?.ReturnValue));
+        }
+
+        
+
+        void IDataContext.OnCreated()
+        {
+            throw new NotImplementedException();
+        }
+
+        int IDataContext.GetMaxLength(string dbType)
+        {
+            throw new NotImplementedException();
+        }
+
+        int IDataContext.GetMemberValueLength(object value)
+        {
+            throw new NotImplementedException();
+        }
+
+        void IDataContext.GetCurrentUser()
+        {
+            throw new NotImplementedException();
+        }
+
+        IMultipleResults IDataContext.RecordAttend(int? meetingId, int? peopleId, bool? present)
+        {
+            throw new NotImplementedException();
+        }
+
+        IMultipleResults IDataContext.RecordAttendance(int? orgId, int? peopleId, DateTime meetingDate, bool present, string location, int? userId)
+        {
+            throw new NotImplementedException();
         }
     }
 }

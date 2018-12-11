@@ -4,6 +4,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Web.Mvc;
 using CmsData.Registration;
 using UtilityExtensions;
+using CmsData;
+using System.Linq;
 
 namespace CmsWeb
 {
@@ -12,6 +14,18 @@ namespace CmsWeb
         protected override object CreateModel(ControllerContext controllerContext, ModelBindingContext bindingContext, Type modelType)
         {
             string type = null;
+
+            var constructors = modelType.GetConstructors();
+
+            var hasParameterlessConstructor = constructors.Any(x => x.GetParameters().Count() == 0);
+
+            var hostAndDbConstructor = modelType.GetConstructor(new Type[] { typeof(string), typeof(CMSDataContext) });
+            var dbAndHostConstructor = modelType.GetConstructor(new Type[] { typeof(CMSDataContext), typeof(string) });
+            var dbOnlyConstructor = modelType.GetConstructor(new Type[] { typeof(CMSDataContext) });
+
+            var currentHost = Util.Host;
+            var currentDb = DbUtil.Db;
+
             if (modelType == typeof (Ask))
             {
                 var requestname = bindingContext.ModelName + ".Type";

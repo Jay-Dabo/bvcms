@@ -106,7 +106,7 @@ namespace CmsData
         //
         public string DoReplacements(int pid, EmailQueueTo emailqueueto)
         {
-            using (db = CMSDataContext.Create(connStr, host))
+            using (db = CMSDataContext.Create(connStr, host, false))
             {
                 if (currentOrgId.HasValue)
                     db.SetCurrentOrgId(currentOrgId);

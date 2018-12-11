@@ -7,17 +7,34 @@ using CmsWeb.Common;
 using CmsData;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using CmsWeb.Pushpay.Entities;
+//using CmsWeb.Lifecycle;
 using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 using UtilityExtensions;
+using PushPay.Entities;
+using PushPay;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
     [RouteArea("Setup", AreaPrefix = "Pushpay")]
     public class PushpayController : Controller
     {        
-        
+        private PushpayConnection _pushpay;
+        private CMSDataContext _db;
+        public PushpayController(CMSDataContext db)
+        {
+
+            _db = db;
+            _pushpay = new PushpayConnection("","",_db,
+                Configuration.Current.PushpayAPIBaseUrl,
+                Configuration.Current.PushpayClientID,
+                Configuration.Current.PushpayClientSecret,
+                Configuration.Current.OAuth2AuthorizeEndpoint,
+                Configuration.Current.TouchpointAuthServer,
+                Configuration.Current.OAuth2TokenEndpoint);
+
+        }
+
         /// <summary>
         ///     Opens the developer console in a separate VIEW
         /// </summary>
@@ -45,24 +62,22 @@ namespace CmsWeb.Areas.Setup.Controllers
         }
 
         [AllowAnonymous, Route("~/Pushpay/Complete")]
-        public async Task<ActionResult> Complete()
+        public async Task<ActionResult> Complete(string state)
         {
             string redirectUrl;
-            var tenantHost = Request["state"];
-            if (!Configuration.Current.IsDeveloperMode)
-            {
-                redirectUrl = "https://" + tenantHost + "." + Configuration.Current.OrgBaseDomain + "/Pushpay/Save";
-            }
-            else {
-                redirectUrl = "http://" + Configuration.Current.TenantHostDev + "/Pushpay/Save";
-            }
+            var tenantHost = state;
+#if DEBUG
+            redirectUrl = "http://" + Configuration.Current.TenantHostDev + "/Pushpay/Save";
+#else
+            redirectUrl = "https://" + tenantHost + "." + Configuration.Current.OrgBaseDomain + "/Pushpay/Save";
+#endif            
 
             //Received authorization code from authorization server
             var authorizationCode = Request["code"];
             if (authorizationCode != null && authorizationCode != "")
             {
                 //Get code returned from Pushpay
-                var at = await AuthorizationCodeCallback(authorizationCode);
+                var at = await _pushpay.AuthorizationCodeCallback(authorizationCode);
                 return Redirect(redirectUrl + "?_at=" + at.access_token + "&_rt=" + at.refresh_token);
             }
             return Redirect("~/Home/Index");
@@ -72,7 +87,7 @@ namespace CmsWeb.Areas.Setup.Controllers
         public ActionResult Save(string _at, string _rt)
         {
             string idAccessToken = "PushpayAccessToken", idRefreshToken= "PushpayRefreshToken";
-            var dbContext = DbUtil.Db;
+            var dbContext = _db;
             var m = dbContext.Settings.AsQueryable();
             if (!Regex.IsMatch(idAccessToken, @"\A[A-z0-9-]*\z"))
                 return View("Invalid characters in setting id");
@@ -86,9 +101,9 @@ namespace CmsWeb.Areas.Setup.Controllers
                 dbContext.SetSetting(idAccessToken, _at);
             }
             else { // Update access token
-                DbUtil.Db.SetSetting(idAccessToken, _at);
-                DbUtil.Db.SubmitChanges();
-                DbUtil.LogActivity($"Edit Setting {idAccessToken} to {_at}", userId: Util.UserId);
+                _db.SetSetting(idAccessToken, _at);
+                _db.SubmitChanges();
+                _db.LogActivity($"Edit Setting {idAccessToken} to {_at}", uid: Util.UserId);                
             }
             if (!dbContext.Settings.Any(s => s.Id == idRefreshToken))
             { //Create refresh token
@@ -99,9 +114,9 @@ namespace CmsWeb.Areas.Setup.Controllers
             }
             else
             { // Update refresh token
-                DbUtil.Db.SetSetting(idRefreshToken, _rt);
-                DbUtil.Db.SubmitChanges();
-                DbUtil.LogActivity($"Edit Setting {idRefreshToken} to {_rt}", userId: Util.UserId);
+                _db.SetSetting(idRefreshToken, _rt);
+                _db.SubmitChanges();
+                _db.LogActivity($"Edit Setting {idRefreshToken} to {_rt}", uid: Util.UserId);
             }
 
             return RedirectToAction("Finish");
@@ -111,50 +126,51 @@ namespace CmsWeb.Areas.Setup.Controllers
         public ActionResult Finish()
         { return View();  }
 
-        public async Task<AccessToken> AuthorizationCodeCallback(string _authCode)
-        {            
+
+        //public async Task<AccessToken> AuthorizationCodeCallback(string _authCode)
+        //{            
             
                        
-            // exchange authorization code at authorization server for an access and refresh token
-            Dictionary<string, string> post = null;
-            post = new Dictionary<string, string>
-            {
-                { "client_id", Configuration.Current.PushpayClientID}
-                ,{"client_secret", Configuration.Current.PushpayClientSecret}
-                ,{"grant_type", "authorization_code"}
-                ,{"code", _authCode}
-                ,{"redirect_uri", Configuration.Current.TouchpointAuthServer}
-            };
+        //    // exchange authorization code at authorization server for an access and refresh token
+        //    Dictionary<string, string> post = null;
+        //    post = new Dictionary<string, string>
+        //    {
+        //        { "client_id", Configuration.Current.PushpayClientID}
+        //        ,{"client_secret", Configuration.Current.PushpayClientSecret}
+        //        ,{"grant_type", "authorization_code"}
+        //        ,{"code", _authCode}
+        //        ,{"redirect_uri", Configuration.Current.TouchpointAuthServer}
+        //    };
 
-            var client = new HttpClient();
-            //Setting a "basic auth" header
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue(
-                    "Basic",
-                    Convert.ToBase64String(
-                        System.Text.ASCIIEncoding.ASCII.GetBytes(
-                            string.Format("{0}:{1}", Configuration.Current.PushpayClientID, Configuration.Current.PushpayClientSecret)
-                        )));            
-            var postContent = new FormUrlEncodedContent(post);
-            var response = await client.PostAsync(Configuration.Current.OAuth2TokenEndpoint, postContent);
-            var content = await response.Content.ReadAsStringAsync();
-            var _accessToken = new AccessToken();
-            // exchange code for tokens from authorization server
-            try {                
-                var json = JObject.Parse(content);                
-                _accessToken.access_token = json["access_token"].ToString();
-                _accessToken.token_type = json["token_type"].ToString();
-                _accessToken.expires_in = Convert.ToInt64(json["expires_in"].ToString());
-                if (json["refresh_token"] != null)
-                    _accessToken.refresh_token = json["refresh_token"].ToString();
-            }
-            catch (Exception ex) {
-                ModelState.AddModelError("form", ex.Message);                
-            }            
-            if (_accessToken != null)
-                return _accessToken;
-            else return null;                        
-        }
+        //    var client = new HttpClient();
+        //    //Setting a "basic auth" header
+        //    client.DefaultRequestHeaders.Authorization =
+        //        new AuthenticationHeaderValue(
+        //            "Basic",
+        //            Convert.ToBase64String(
+        //                System.Text.ASCIIEncoding.ASCII.GetBytes(
+        //                    string.Format("{0}:{1}", Configuration.Current.PushpayClientID, Configuration.Current.PushpayClientSecret)
+        //                )));            
+        //    var postContent = new FormUrlEncodedContent(post);
+        //    var response = await client.PostAsync(Configuration.Current.OAuth2TokenEndpoint, postContent);
+        //    var content = await response.Content.ReadAsStringAsync();
+        //    var _accessToken = new AccessToken();
+        //    // exchange code for tokens from authorization server
+        //    try {                
+        //        var json = JObject.Parse(content);                
+        //        _accessToken.access_token = json["access_token"].ToString();
+        //        _accessToken.token_type = json["token_type"].ToString();
+        //        _accessToken.expires_in = Convert.ToInt64(json["expires_in"].ToString());
+        //        if (json["refresh_token"] != null)
+        //            _accessToken.refresh_token = json["refresh_token"].ToString();
+        //    }
+        //    catch (Exception ex) {
+        //        ModelState.AddModelError("form", ex.Message);                
+        //    }            
+        //    if (_accessToken != null)
+        //        return _accessToken;
+        //    else return null;                        
+        //}
         
     }
 }
