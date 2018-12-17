@@ -161,9 +161,9 @@ GO
             return retVal;
         }
 
+        static string currentFile;
         public static string CreateDatabase(string hostName, string sqlScriptsPath, string masterConnectionString, string imageConnectionString, string elmahConnectionString, string standardConnectionString)
         {
-            var currentFile = string.Empty;
             try
             {
                 RunScripts(masterConnectionString, "create database CMS_" + hostName);
@@ -216,7 +216,8 @@ GO
                     {
                         currentFile = migrationsFolder;
                         RunMigrations(cn, migrationsFolder);
-                    } else
+                    }
+                    else
                     {
                         throw new DirectoryNotFoundException(migrationsFolder + " was not found");
                     }
@@ -235,12 +236,13 @@ GO
             var files = new DirectoryInfo(migrationsFolder).EnumerateFiles();
             foreach (var f in files)
             {
-                var script = File.ReadAllText(f.FullName);
+                currentFile = f.FullName;
+                var script = File.ReadAllText(currentFile);
                 RunScripts(connection, script);
             }
         }
 
-        private static void RunScripts(string cs, string script)
+        public static void RunScripts(string cs, string script)
         {
             using (var cn = new SqlConnection(cs))
             {
@@ -249,11 +251,11 @@ GO
             }
         }
 
-        private static void RunScripts(SqlConnection cn, string script)
+        public static void RunScripts(SqlConnection cn, string script)
         {
             using (var cmd = new SqlCommand { Connection = cn, CommandTimeout = 0 })
             {
-                var scripts = Regex.Split(script, "^GO.*$", RegexOptions.Multiline);
+                var scripts = Regex.Split(script, "^GO.*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
                 foreach (var s in scripts)
                 {
                     if (s.HasValue())

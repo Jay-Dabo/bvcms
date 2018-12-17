@@ -111,7 +111,13 @@ namespace CmsData.Classes.Twilio
             return isConfigured;
         }
 
-        public static bool SendSMS(CMSDataContext db, string toNumber, string message)
+        public static List<SMSNumber> GetSystemSMSGroup(CMSDataContext db)
+        {
+            var groups = db.SMSGroups.Where(g => g.SystemFlag == true).Select(g => g.Id).Take(1);
+            return db.SMSNumbers.Where(m => groups.Contains(m.GroupID)).ToList();
+        }
+
+        public static bool SendSMS(CMSDataContext db, string toNumber, SMSNumber fromNumber, string message)
         {
             bool success = false;
             string sSID = GetSid(db);
@@ -119,7 +125,7 @@ namespace CmsData.Classes.Twilio
 
             if (sSID.HasValue() && sToken.HasValue())
             {
-                SMSNumber smsNumber = db.SMSNumbers.FirstOrDefault();
+                SMSNumber smsNumber = fromNumber ?? db.SMSNumbers.FirstOrDefault();
                 if (smsNumber != null)
                 {
                     var response = SendSmsInternal(sSID, sToken, smsNumber.Number, toNumber, message);
@@ -251,6 +257,10 @@ namespace CmsData.Classes.Twilio
 
             TwilioClient.Init(sSID, sToken);
             Uri callbackUri = callbackUrl.HasValue() ? new Uri(callbackUrl) : null;
+
+            //For testing numbers outside of U.S.
+            //sTo = string.Format("+{0}", sTo);
+
             MessageResource response = MessageResource.Create(new PhoneNumber(sTo), from: new PhoneNumber(sFrom), body: sBody, statusCallback: callbackUri);
 
             if (IsSmsSent(response))
@@ -286,8 +296,10 @@ namespace CmsData.Classes.Twilio
             TwilioClient.Init(GetSid(DbUtil.Db), GetToken(DbUtil.Db));
             var numbers = IncomingPhoneNumberResource.Read().ToList();
 
-            var used = (from e in DbUtil.Db.SMSNumbers
-                        select e).ToList();
+            var used = (from number in DbUtil.Db.SMSNumbers
+                        join g in DbUtil.Db.SMSGroups on number.GroupID equals g.Id
+                        where g.IsDeleted == false
+                        select number).ToList();
 
             for (var iX = numbers.Count - 1; iX > -1; iX--)
             {
@@ -336,7 +348,7 @@ namespace CmsData.Classes.Twilio
         public static List<SMSGroup> GetAvailableLists(int iUserID)
         {
             var groups = (from e in DbUtil.Db.SMSGroups
-                          where e.SMSGroupMembers.Any(f => f.UserID == iUserID)
+                          where e.IsDeleted == false && e.SMSGroupMembers.Any(f => f.UserID == iUserID)
                           select e).ToList();
 
             return groups;
