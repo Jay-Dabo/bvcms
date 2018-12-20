@@ -1,7 +1,6 @@
 ﻿using CmsData;
 using CmsWeb.Common;
 using CmsWeb.Lifecycle;
-using CmsWeb.Pushpay.Entities;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -36,7 +35,7 @@ namespace CmsWeb.Areas.Setup.Controllers
 
         }
 
-    {
+    
         //todo: Inheritance chain
         private readonly RequestManager RequestManager;
         private CMSDataContext CurrentDatabase => RequestManager.CurrentDatabase;
@@ -140,7 +139,7 @@ namespace CmsWeb.Areas.Setup.Controllers
         public ActionResult Finish()
         { return View(); }
 
-        public async Task<AccessToken> AuthorizationCodeCallback(string _authCode)
+        public async Task<PushPay.Entities.AccessToken> AuthorizationCodeCallback(string _authCode)
         {
 
 
