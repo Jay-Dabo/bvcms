@@ -18,6 +18,7 @@ namespace CmsData
 {
     public static partial class DbUtil
     {
+        
         private const string CMSDbKEY = "CMSDbKey";
         private static CMSDataContext InternalDb
         {
@@ -37,13 +38,10 @@ namespace CmsData
             get
             {
                 if (HttpContext.Current == null)
-                {
-                    return CMSDataContext.Create(Util.ConnectionString, Util.Host);
-                }
-
+                    return CMSDataContext.Create(Util.ConnectionString, Util.Host, false);
                 if (InternalDb == null)
                 {
-                    InternalDb = CMSDataContext.Create(Util.ConnectionString, Util.Host);
+                    InternalDb = CMSDataContext.Create(Util.ConnectionString, Util.Host, false);
                     InternalDb.CommandTimeout = 1200;
                 }
                 return InternalDb;
@@ -53,16 +51,16 @@ namespace CmsData
                 InternalDb = value;
             }
         }
-        public static CMSDataContext DbReadOnly => CMSDataContext.Create(Util.ConnectionStringReadOnly, Util.Host);
+        public static CMSDataContext DbReadOnly => CMSDataContext.Create(Util.ConnectionStringReadOnly, Util.Host, false);
 
         public static CMSDataContext Create(string host)
         {
-            return CMSDataContext.Create(Util.GetConnectionString(host), host);
+            return CMSDataContext.Create(Util.GetConnectionString(host), host, false);
         }
 
         public static CMSDataContext Create(string connstr, string host)
         {
-            return CMSDataContext.Create(connstr, host);
+            return CMSDataContext.Create(connstr, host, false);
         }
 
         private static void _logActivity(string host, string activity, int? orgId, int? peopleId, int? datumId, int? userId, string pageUrl = null, string clientIp = null)
