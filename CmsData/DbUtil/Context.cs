@@ -50,10 +50,10 @@ namespace CmsData
         }
 #endif
         internal string ConnectionString;
+        
         public CMSDataContext Create(string connStr, string host)
         {
-            Create(connStr, host, true);
-            throw new NotImplementedException();
+            return Create(connStr, host, true);            
         }
         public static CMSDataContext Create(string connStr, string host, bool instanciated)
         {
