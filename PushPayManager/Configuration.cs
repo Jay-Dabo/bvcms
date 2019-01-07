@@ -1,6 +1,6 @@
 ﻿using System.Configuration;
 
-namespace Pushpay.Configuration
+namespace PushPay.Configuration
 {
     /// <summary>
     ///     Abstraction of our configuration class

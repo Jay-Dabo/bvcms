@@ -4,11 +4,12 @@ using System.Threading.Tasks;
 using CmsData;
 using CmsData.Codes;
 using PushPay.ApiModels;
+using System.Data.SqlClient;
 
 
 namespace PushPay
 {
-    class PushPayImport
+    public class PushPayImport
     {
         private CMSDataContext db;
 
@@ -27,13 +28,16 @@ namespace PushPay
         private readonly string _oAuth2AuthorizeEndpoint;
         private readonly string _touchpointAuthServer;
         private readonly string _oAuth2TokenEndpoint;
-
-
-        public PushPayImport(CMSDataContext dataContext, string pushpayAPIBaseUrl,
+        
+        public PushPayImport(string dbname, string connstr, string pushpayAPIBaseUrl,
             string pushpayClientID, string pushpayClientSecret, string oAuth2AuthorizeEndpoint,
             string touchpointAuthServer, string oAuth2TokenEndpoint)
         {
-            db = dataContext;
+            var cb = new SqlConnectionStringBuilder(connstr) { InitialCatalog = dbname };
+            var host = dbname.Split(new char[] { '_' }, 2)[1];
+            db = CMSDataContext.Create(cb.ConnectionString, host, true);
+
+            
             _pushpayAPIBaseUrl = pushpayAPIBaseUrl;
             _pushpayClientID = pushpayClientID;
             _pushpayClientSecret = pushpayClientSecret;
