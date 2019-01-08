@@ -1,5 +1,6 @@
 ﻿using CmsData;
 using CmsData.Codes;
+using CmsData.View;
 using CmsWeb.Code;
 using CmsWeb.Models;
 using System;
@@ -154,25 +155,28 @@ namespace CmsWeb.Areas.People.Models
             return q2;
         }
 
-        public static IEnumerable<StatementInfo> Statements(int? id)
+        public static IEnumerable<StatementInfoWithFund> Statements(int? id)
+        {
+            return Statements(id, null);
+        }
+       
+        public static IEnumerable<StatementInfoWithFund> Statements(int? id, int[] includedFundIds)
         {
             if (!id.HasValue)
             {
                 throw new ArgumentException("Missing id");
             }
 
-            var person = DbUtil.Db.LoadPersonById(id.Value);
-
-
-            var contributions = (from c in DbUtil.Db.Contributions2(new DateTime(1900, 1, 1), new DateTime(3000, 12, 31), 0, false, null, true)
+            var dbContext = DbUtil.Db;
+            var person = dbContext.LoadPersonById(id.Value);
+            var contributions = (from c in dbContext.Contributions2(new DateTime(1900, 1, 1), new DateTime(3000, 12, 31), 0, false, null, true)
                                  where (c.PeopleId == person.PeopleId || (c.PeopleId == person.SpouseId && (person.ContributionOptionsId ?? StatementOptionCode.Joint) == StatementOptionCode.Joint))
                                  select c).ToList();
-
-            var currentUser = DbUtil.Db.CurrentUserPerson;
+            var currentUser = dbContext.CurrentUserPerson;
 
             if (currentUser.PeopleId != person.PeopleId)
             {
-                var authorizedFunds = DbUtil.Db.ContributionFunds.ScopedByRoleMembership();
+                var authorizedFunds = dbContext.ContributionFunds.ScopedByRoleMembership();
                 var authorizedContributions = from c in contributions
                                               join f in authorizedFunds on c.FundId equals f.FundId
                                               select c;
@@ -180,17 +184,23 @@ namespace CmsWeb.Areas.People.Models
                 contributions = authorizedContributions.ToList();
             }
 
+            if(includedFundIds != null)
+            {
+                contributions = contributions.Where(c => includedFundIds.Contains(c.FundId)).ToList();
+            }
 
-            var result = from c in contributions
-                         group c by c.DateX.Value.Year into g
-                         orderby g.Key descending
-                         select new StatementInfo()
+            var result = (from c in contributions
+                         group c by new { c.DateX.Value.Year, c.FundName, c.FundId } into g
+                         orderby g.Key.Year descending, g.Key.FundName ascending
+                         select new StatementInfoWithFund()
                          {
                              Count = g.Count(),
                              Amount = g.Sum(cc => cc.Amount ?? 0),
-                             StartDate = new DateTime(g.Key, 1, 1),
-                             EndDate = new DateTime(g.Key, 12, 31)
-                         };
+                             StartDate = new DateTime(g.Key.Year, 1, 1),
+                             EndDate = new DateTime(g.Key.Year, 12, 31),
+                             FundName = g.Key.FundName,
+                             FundId = g.Key.FundId
+                         }).ToList();
 
             return result;
         }
