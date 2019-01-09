@@ -1,11 +1,17 @@
-﻿@{
+﻿@using System.Web.Mvc.Html
+@{
     Layout = ViewExtensions2.TouchPointLayout();
     ViewBag.Title = "Figures";
     ViewBag.PageHeader = "Refine Attendance Chart";
 }
 @ViewExtensions2.jQuery()
 @ViewExtensions2.jQueryUI()
+
+@Fingerprint.Css("/Content/touchpoint/lib/jquery-multi-select/css/multi-select.css")
+@Fingerprint.Script("/Content/touchpoint/lib/jquery-multi-select/js/jquery.multi-select.js")
+
 <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+
 <div class="row">   
     <div class="col-lg-12">
         <div class="box box-responsive">
@@ -19,33 +25,50 @@
                 <div class="form-group">
                     <label for="Program" class="control-label">Program</label>
                     <div id="ProgramContainer">
-                        @Html.Action("ProgramView")
+                        @Html.DropDownListFor(p => p.SelectedProgId, Model.ProgIEnum, "Select a Program", new {@id = "Program-DropdownID", @class = "Program-DropdownCls"})
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="FundDescription" class="control-label">Division</label>
                     <div id="DivisionContainer">
-                        @Html.Action("DivisionView")
+                        @Html.DropDownListFor(p => p.SelectedDivId, Model.DivIEnum, "Select a Division", new { @id="Division-DropDownID", @class="Division-DropDownCls"})
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="FundDescription" class="control-label">Organization</label>
                     <div id="OrganizationContainer">
-                        @Html.Action("OrganizationView")
+                        @Html.DropDownListFor(p => p.SelectedOrgId, Model.OrgIEnum, new { @id = "Organization-DropdownID", @class = "Organization-DropdownCls", @multiple = "multiple"})
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
 <script type="text/javascript">
     google.load("visualization", "1", { packages: ["corechart"] });
+
     $('#DrawChart').click(function() {
         var e = document.getElementById('Attendance_chart_display');
         e.style.display = 'block';
         var selectedValues = $('#Organization-DropdownID').val();
-        alert(selectedValues);
+        //alert(selectedValues);
         $("#Attendance_chart_display").load('/Figures/Figures/AttendanceChartDisplayView', { orgIdsArr: selectedValues });
     });
 
+    $(function () {
+        $('#Program-DropdownID').change(function () {
+            var selectedProgramId = this.value;
+            $('#DivisionContainer').load('@Url.Action("DivisionView")?progId=' + selectedProgramId);
+            $('#OrganizationContainer').load('@Url.Action("OrganizationView")'); // clear up the Organization drop down list as no division is selected
+        });
+
+        $('#Division-DropDownID').change(function () {
+            var selectedProgramId = $('#Program-DropdownID option:selected').val();            
+            var selectedDivisionId = this.value;
+            $('#OrganizationContainer').load('@Url.Action("OrganizationView")?progId=' + selectedProgramId + '&divId=' + selectedDivisionId); 
+        });
+
+        $('#Organization-DropdownID').multiSelect();
+    });
 </script>

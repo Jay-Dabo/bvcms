@@ -1095,10 +1095,7 @@
     <Content Include="Areas\Dialog\Views\AddToOrgFromTag\Index.cshtml" />
     <Content Include="Areas\Figures\Views\Figures\AttendanceChartDisplayView.cshtml" />
     <Content Include="Areas\Figures\Views\Figures\ChartDisplayView.cshtml" />
-    <Content Include="Areas\Figures\Views\Figures\DivisionView.cshtml" />
-    <Content Include="Areas\Figures\Views\Figures\FundView.cshtml" />
     <Content Include="Areas\Figures\Views\Figures\Index.cshtml" />
-    <Content Include="Areas\Figures\Views\Figures\OrganizationView.cshtml" />
     <Content Include="Areas\Figures\Views\Figures\ProgramView.cshtml" />
     <Content Include="Areas\Figures\Views\Figures\RefineAttendanceView.cshtml" />
     <Content Include="Areas\Figures\Views\Figures\RefineFundView.cshtml" />
