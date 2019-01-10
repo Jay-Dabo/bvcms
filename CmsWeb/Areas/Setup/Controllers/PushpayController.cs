@@ -1,18 +1,12 @@
 ﻿using CmsData;
 using CmsWeb.Common;
 using CmsWeb.Lifecycle;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Mvc;
 using UtilityExtensions;
-using PushPay.Entities;
-using PushPay;
+using TransactionGateway;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {

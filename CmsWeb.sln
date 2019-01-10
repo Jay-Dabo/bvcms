@@ -31,7 +31,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "UnitTests\Unit
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmsTwilio", "CmsTwilio\CmsTwilio.csproj", "{ADCF6AAD-A8DE-4304-ABCC-B9FB3908A71F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PushPayManager", "PushPayManager\PushPayManager.csproj", "{4ADB1DB1-5F64-4F04-94F6-D76CB640A6E1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TransactionGateway", "TransactionGateway\TransactionGateway.csproj", "{4ADB1DB1-5F64-4F04-94F6-D76CB640A6E1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

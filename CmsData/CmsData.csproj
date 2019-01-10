@@ -527,6 +527,8 @@
     <Compile Include="Classes\Pbkdf2Hasher.cs" />
     <Compile Include="Classes\RoleChecker\RoleChecker.cs" />
     <Compile Include="Classes\style.cs" />
+    <Compile Include="Finance\PushPay\PushpayGateway.cs" />
+    <Compile Include="Finance\Acceptiva\AcceptivaGateway.cs" />
     <Compile Include="DbUtil\ContextCommon.cs" />
     <Compile Include="DbUtil\CurrentOrg.cs" />
     <Compile Include="DbUtil\IDataContext.cs" />

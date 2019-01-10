@@ -2535,7 +2535,6 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
-    <Compile Include="Pushpay\Entities\AccessToken.cs" />
     <Compile Include="Resource1.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -3280,9 +3279,9 @@
       <Project>{512DA381-E81B-4121-B978-FC850EC88353}</Project>
       <Name>ImageData</Name>
     </ProjectReference>
-    <ProjectReference Include="..\PushPayManager\PushPayManager.csproj">
+    <ProjectReference Include="..\TransactionGateway\TransactionGateway.csproj">
       <Project>{4adb1db1-5f64-4f04-94f6-d76cb640a6e1}</Project>
-      <Name>PushPayManager</Name>
+      <Name>TransactionGateway</Name>
     </ProjectReference>
     <ProjectReference Include="..\UtilityExtensions\UtilityExtensions.csproj">
       <Project>{C504E3D2-5498-451B-BF82-309623706F11}</Project>
@@ -3332,8 +3331,6 @@
     <Folder Include="Areas\Public\Views\TestMobile\" />
     <Folder Include="Areas\Search\Views\Shared\" />
     <Folder Include="Areas\Setup\Views\Shared\" />
-    <Folder Include="Pushpay\Enums\" />
-    <Folder Include="Pushpay\Exceptions\" />
   </ItemGroup>
   <ItemGroup>
     <Service Include="{3259AA49-8AA1-44D3-9025-A0B520596A8C}" />
