@@ -50,14 +50,15 @@ namespace TransactionGateway
             {                
                 _access_token = db.GetSetting("PushpayAccessToken", "");
                 _refresh_token = db.GetSetting("PushpayRefreshToken", "");
-                
+
                 _pushpay = new PushpayConnection(_access_token, _refresh_token, db,
-                _pushpayAPIBaseUrl,
                 _pushpayClientID,
                 _pushpayClientSecret,
-                _oAuth2AuthorizeEndpoint,
+                _oAuth2TokenEndpoint,
+                _pushpayAPIBaseUrl,
                 _touchpointAuthServer,
-                _oAuth2TokenEndpoint);
+                _oAuth2AuthorizeEndpoint
+                );
             }
 
             

@@ -7,6 +7,12 @@ using System.Threading.Tasks;
 using System.Web.Mvc;
 using UtilityExtensions;
 using TransactionGateway;
+using TransactionGateway.Entities;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System;
+using Newtonsoft.Json.Linq;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
@@ -68,11 +74,20 @@ namespace CmsWeb.Areas.Setup.Controllers
 #endif            
 
             //Received authorization code from authorization server
+            
             var authorizationCode = Request["code"];
+            AccessToken at = new AccessToken();
             if (authorizationCode != null && authorizationCode != "")
             {
                 //Get code returned from Pushpay
-                var at = await _pushpay.AuthorizationCodeCallback(authorizationCode);
+                try
+                {
+                    at = await _pushpay.AuthorizationCodeCallback(authorizationCode);
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("form", ex.Message);
+                }
                 return Redirect(redirectUrl + "?_at=" + at.access_token + "&_rt=" + at.refresh_token);
             }
             return Redirect("~/Home/Index");
@@ -124,7 +139,8 @@ namespace CmsWeb.Areas.Setup.Controllers
         public ActionResult Finish()
         { return View(); }
 
-        
-
     }
 }
+
+
+

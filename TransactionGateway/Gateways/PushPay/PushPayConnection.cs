@@ -8,6 +8,8 @@ using TransactionGateway.Entities;
 using System.Net.Http;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
+using System.Web.Mvc;
+//using System.Web.Mvc;
 
 namespace TransactionGateway
 {
@@ -16,33 +18,60 @@ namespace TransactionGateway
     /// </summary>
     public class PushpayConnection
     {
-        private IApiClient _client;
-        private string accessToken;
-        private string refreshToken;
-        private CMSDataContext db;
+        private ApiClient _client;
+        private string _accessToken;
+        private string _refreshToken;
+        private string _pushpayClientID;
+        private string _pushpayClientSecret;
+        private string _oAuth2TokenEndpoint;
         private string _pushpayAPIBaseUrl;
-        private string _pushpayClientID, _pushpayClientSecret, _oAuth2AuthorizeEndpoint, _touchpointAuthServer, _oAuth2TokenEndpoint;
+        private string _touchpointAuthServer;
+        private CMSDataContext db;
+
+        /*
+         * ("", "", CurrentDatabase,
+                Configuration.Current.PushpayAPIBaseUrl,
+                Configuration.Current.PushpayClientID,
+                Configuration.Current.PushpayClientSecret,
+                Configuration.Current.OAuth2AuthorizeEndpoint,
+                Configuration.Current.TouchpointAuthServer,
+                Configuration.Current.OAuth2TokenEndpoint);
+         */
 
         public PushpayConnection(string access_token, string refresh_token, CMSDataContext db_context,
-            string pushpayAPIBaseUrl, string pushpayClientID, string pushpayClientSecret, string oAuth2AuthorizeEndpoint,
-            string touchpointAuthServer, string oAuth2TokenEndpoint)
+            string pushpayAPIBaseUrl, string pushpayClientID, string pushpayClientSecret, string oAuth2TokenEndpoint,
+            string touchpointAuthServer, string OAuth2TokenEndpoint
+            )
         {
-            accessToken = access_token;
-            refreshToken = refresh_token;
-            db = db_context;
-            _pushpayAPIBaseUrl = pushpayAPIBaseUrl;
+            _accessToken = access_token;
+            _refreshToken = refresh_token;
             _pushpayClientID = pushpayClientID;
             _pushpayClientSecret = pushpayClientSecret;
-            _oAuth2AuthorizeEndpoint = oAuth2AuthorizeEndpoint;
-            _touchpointAuthServer = touchpointAuthServer;
             _oAuth2TokenEndpoint = oAuth2TokenEndpoint;
+            _pushpayAPIBaseUrl = pushpayAPIBaseUrl;
+            _touchpointAuthServer = touchpointAuthServer;
+            db = db_context;
+        }
+
+        public PushpayConnection(
+            //string access_token, string refresh_token, CMSDataContext db_context,
+            //string pushpayAPIBaseUrl, string pushpayClientID, string pushpayClientSecret, string oAuth2TokenEndpoint,
+            )
+        {
+            //_accessToken = access_token;
+            //_refreshToken = refresh_token;
+            //_pushpayClientID = pushpayClientID;
+            //_pushpayClientSecret = pushpayClientSecret;
+            //_oAuth2TokenEndpoint = oAuth2TokenEndpoint;
+            //_pushpayAPIBaseUrl = pushpayAPIBaseUrl;
+            //db = db_context;
         }
 
         /// <summary>
         ///     Helper method to create a client connection
         /// </summary>
         /// <returns></returns>
-        private async Task<IApiClient> CreateClient()
+        private async Task<ApiClient> CreateClient()
         {
             if (_client == null)
             {
@@ -52,6 +81,7 @@ namespace TransactionGateway
 
                 // Authenticate
                 string token = await AuthenticateClient();
+
                 _client.SetBearerToken(token);
             }
             return _client;
@@ -63,12 +93,13 @@ namespace TransactionGateway
         /// <returns></returns>
         public async Task<string> AuthenticateClient()
         {
+            //_pushpayClientID, _pushpayClientSecret, _oAuth2TokenEndpoint
             if (string.IsNullOrWhiteSpace(_pushpayClientID) || string.IsNullOrWhiteSpace(_pushpayClientSecret))
             {
                 RaiseError(new Exception("Please provide Pushpay client ID and secret tokens in your web.config"));
             }
 
-            if (string.IsNullOrWhiteSpace(refreshToken))
+            if (string.IsNullOrWhiteSpace(_refreshToken))
             {
                 RaiseError(new Exception("No refresh token set on this DB. Please authenticate with PushPay first"));
             }
@@ -82,7 +113,7 @@ namespace TransactionGateway
             post = new Dictionary<string, string>
                 {
                     {"grant_type", "refresh_token"}
-                    ,{"refresh_token", refreshToken}
+                    ,{"refresh_token", _refreshToken}
                 };
 
             var client = new HttpClient();
@@ -151,15 +182,23 @@ namespace TransactionGateway
                 _accessToken.token_type = json["token_type"].ToString();
                 _accessToken.expires_in = Convert.ToInt64(json["expires_in"].ToString());
                 if (json["refresh_token"] != null)
+                {
                     _accessToken.refresh_token = json["refresh_token"].ToString();
+                }
             }
             catch (Exception ex)
             {
-                RaiseError(new Exception("Failed to retrieve access token, error was: " + ex.Message));
+                //ModelState.AddModelError("form", ex.Message);
+                throw ex;
             }
             if (_accessToken != null)
+            {
                 return _accessToken;
-            else return null;
+            }
+            else
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -170,25 +209,25 @@ namespace TransactionGateway
         {
             throw ex;
         }
-        
+
         public async Task<IEnumerable<Merchant>> GetMerchants()
         {
-            IApiClient client = await CreateClient();
+            ApiClient client = await CreateClient();
             MerchantList result = await client.Init("my/merchants", "Loading merchant list").Execute<MerchantList>();
             return result.Items;
         }
 
         public async Task<Merchant> GetMerchant(string merchantKey)
         {
-            IApiClient client = await CreateClient();
+            ApiClient client = await CreateClient();
             Merchant result = await client.Init($"merchant/{merchantKey}", "Loading merchant details").SetMethod(RequestMethodTypes.GET).Execute<Merchant>();
             return result;
         }
-        
+
         public async Task<BatchList> GetBatchesForMerchantSince(string merchantKey, DateTime startDate, int page = 0)
         {
             // GET /v1/merchant/{merchantKey}/batches?from=2018-01-01T00:00:00Z
-            IApiClient client = await CreateClient();
+            ApiClient client = await CreateClient();
             BatchList result = await client.Init($"merchant/{merchantKey}/batches?from={startDate}&page={page}", "Loading batches").SetMethod(RequestMethodTypes.GET).Execute<BatchList>();
             return result;
         }
@@ -196,7 +235,7 @@ namespace TransactionGateway
         public async Task<FundList> GetFundsForMerchant(string merchantKey)
         {
             // GET /v1/merchant/{merchantKey}/funds
-            IApiClient client = await CreateClient();
+            ApiClient client = await CreateClient();
             FundList result = await client.Init($"merchant/{merchantKey}/funds", "Loading funds").SetMethod(RequestMethodTypes.GET).Execute<FundList>();
             return result;
         }
@@ -204,9 +243,10 @@ namespace TransactionGateway
         public async Task<PaymentList> GetPaymentsForBatch(string merchantKey, string batchKey, int page = 0)
         {
             // GET /v1/merchant/{merchantKey}/batch/{batchKey}/payments
-            IApiClient client = await CreateClient();
+            ApiClient client = await CreateClient();
             PaymentList result = await client.Init($"merchant/{merchantKey}/batch/{batchKey}/payments?page={page}", "Loading payments").SetMethod(RequestMethodTypes.GET).Execute<PaymentList>();
             return result;
         }
     }
+
 }
