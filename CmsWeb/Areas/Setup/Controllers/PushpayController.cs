@@ -13,7 +13,8 @@ using System.Threading.Tasks;
 using System.Web.Mvc;
 using UtilityExtensions;
 using TransactionGateway;
-
+using TransactionGateway.ApiModels;
+using CmsData.Finance;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
@@ -25,7 +26,7 @@ namespace CmsWeb.Areas.Setup.Controllers
         private CMSDataContext CurrentDatabase => RequestManager.CurrentDatabase;
 
         private PushpayConnection _pushpay;
-        
+
         public PushpayController(RequestManager requestManager)
         {
             RequestManager = requestManager;
@@ -85,7 +86,7 @@ namespace CmsWeb.Areas.Setup.Controllers
             }
             return Redirect("~/Home/Index");
         }
-    
+
 
         [Route("~/Pushpay/Save")]
         public ActionResult Save(string _at, string _rt)
@@ -132,6 +133,67 @@ namespace CmsWeb.Areas.Setup.Controllers
         [Route("~/Pushpay/Finish")]
         public ActionResult Finish()
         { return View(); }
+
+        [AllowAnonymous, Route("~/Pushpay/CompletePayment")]
+        public async Task<ActionResult> CompletePayment(string paymentToken, string rc)
+        {
+            var _pushpayPayment = new PushPayPayment(CurrentDatabase, Configuration.Current.PushpayAPIBaseUrl,
+                Configuration.Current.PushpayClientID,
+                Configuration.Current.PushpayClientSecret,
+                Configuration.Current.OAuth2TokenEndpoint,
+                Configuration.Current.TouchpointAuthServer,
+                Configuration.Current.OAuth2AuthorizeEndpoint);
+
+            Payment payment = await _pushpayPayment.GetPayment(paymentToken, CurrentDatabase.GetSetting("PushpayMerchant", ""));
+
+            //if (payment.Settlement?.Key.HasValue() == true)
+            //{
+            //     var bundle = await ResolveSettlement(payment.Settlement);
+            //}
+
+            int? peopleid = _pushpayPayment.ResolvePersonId(payment.Payer, CurrentDatabase);
+            ContributionFund fund = _pushpayPayment.ResolveFund(payment.Fund, CurrentDatabase);
+
+
+            if (payment != null)
+            {
+                //var ti = new Transaction
+                //{
+                //    Name = r.Payer.fullName,
+                //    First = r.Payer.firstName,
+                //    MiddleInitial = "",
+                //    Last = r.Payer.lastName,
+                //    Suffix = "",
+                //    Donate = t.Donate,
+                //    Amtdue = payment.Amount,
+                //    Amt = payment.Amount.Amount,
+                //    Emails = payment.Payer.emailAddress,
+                //    Testing = t.Testing,
+                //    Description = t.Description,
+                //    OrgId = t.OrgId,
+                //    Url = t.Url,
+                //    Address = t.Address,
+                //    TransactionGateway = "Pushpay",
+                //    City = t.City,
+                //    State = t.State,
+                //    Zip = t.Zip,
+                //    DatumId = t.DatumId,
+                //    Phone = t.Phone,
+                //    OriginalId = t.OriginalId ?? t.Id,
+                //    Financeonly = t.Financeonly,
+                //    TransactionDate = Util.Now,
+                //    PaymentType = t.PaymentType,
+                //    LastFourCC = t.LastFourCC,
+                //    LastFourACH = t.LastFourACH
+                //};
+
+                //var staff = CurrentDatabase.StaffPeopleForOrg(34);
+                //var body = GivingConfirmation.PostAndBuild(CurrentDatabase, staff, p.person, p.setting.Body, 34, p.FundItemsChosen(), Transaction, desc,
+                //    p.setting.DonationFundId);
+            }
+            
+            return View();
+        }
 
     }
 }

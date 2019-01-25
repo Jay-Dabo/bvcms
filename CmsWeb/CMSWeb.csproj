@@ -1796,6 +1796,7 @@
       <Link>bin\CmsTwilio.exe.config</Link>
     </Content>
     <Content Include="Areas\People\Views\Person\Giving\Statements.cshtml" />
+    <Content Include="Areas\Setup\Views\Pushpay\CompletePayment.cshtml" />
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>

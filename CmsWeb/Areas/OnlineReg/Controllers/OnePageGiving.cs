@@ -8,6 +8,8 @@ using CmsWeb.Code;
 using CmsWeb.Models;
 using Elmah;
 using UtilityExtensions;
+using TransactionGateway;
+using System.Configuration;
 
 namespace CmsWeb.Areas.OnlineReg.Controllers
 {
@@ -16,6 +18,7 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
         [HttpGet]
         [Route("~/OnePageGiving/{id:int}")]
         public ActionResult OnePageGiving(int id, bool? testing, string source)
+
         {
             Response.NoCache();
             try
@@ -32,6 +35,12 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
                 if (m.NotActive())
                 {
                     return View("OnePageGiving/NotActive", m);
+                }
+
+                if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.OnlineGiving())
+                {
+                    return Redirect(PushPayPayment.OnePageRedirect(ConfigurationManager.AppSettings["PushpayGivingLinkBase"],
+                            CurrentDatabase.GetSetting("PushpayMerchant", "")));
                 }
 
                 var pf = PaymentForm.CreatePaymentForm(m);
