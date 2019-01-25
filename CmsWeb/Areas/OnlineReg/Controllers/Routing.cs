@@ -4,6 +4,8 @@ using System.Web.Mvc;
 using CmsData;
 using CmsWeb.Areas.OnlineReg.Models;
 using UtilityExtensions;
+using TransactionGateway;
+using System.Configuration;
 
 namespace CmsWeb.Areas.OnlineReg.Controllers
 {
@@ -14,8 +16,13 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
             if(pid == 0)
                 return View(m);
 #if DEBUG
-            m.DebugCleanUp();
+            m.DebugCleanUp();            
 #endif
+            if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.OnlineGiving())
+            {
+                return Redirect(PushPayPayment.OneTimeRedirect(ConfigurationManager.AppSettings["PushpayGivingLinkBase"],
+                        CurrentDatabase.GetSetting("PushpayMerchant", ""), m.user, m.org));
+            }
 
             var link = RouteExistingRegistration(m, pid);
             if (link.HasValue())

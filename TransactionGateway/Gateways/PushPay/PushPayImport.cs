@@ -5,12 +5,13 @@ using CmsData;
 using CmsData.Codes;
 using TransactionGateway.ApiModels;
 using System.Data.SqlClient;
-using TransactionGateway.ApiModels;
+using UtilityExtensions;
 
 namespace TransactionGateway
 {
     public class PushPayImport
     {
+        private const string PushPayKey = "PushPayKey";
         private CMSDataContext db;
 
         private DateTime startDate;
@@ -229,33 +230,84 @@ namespace TransactionGateway
         private int? ResolvePersonId(Payer payer)
         {
             // take a pushpay payer and find or create a touchpoint person
-            IQueryable<Person> people = db.People.AsQueryable();
+            bool hasKey = payer.Key.HasValue();
+            bool hasEmail = payer.emailAddress.HasValue();
+            bool hasMobileNumber = payer.mobileNumber.HasValue();
+            bool hasFirstAndLastName = payer.firstName.HasValue() && payer.lastName.HasValue();
 
-            if (String.IsNullOrEmpty(payer.emailAddress))
+            if (!hasKey &&
+                !hasEmail &&
+                !hasMobileNumber &&
+                !hasFirstAndLastName)
             {
                 // can't resolve - typically due to an anonymous donation
                 return null;
             }
 
-            var result = from p in people
-                         where p.EmailAddress == payer.emailAddress
-                         select p;
-            int count = result.Count();
-            if (count == 1)
+            IQueryable<Person> people = db.People.AsQueryable();
+
+            // first look for an already established person link
+            int? PersonId = null;
+
+            if (hasKey)
             {
-                int id = result.Select(p => p.PeopleId).SingleOrDefault();
-                return id;
+                PersonId = db.PeopleExtras.Where(p => p.Field == PushPayKey && p.StrValue == payer.Key).Select(p => p.PeopleId).SingleOrDefault();
+                if (PersonId.HasValue && PersonId != 0)
+                {
+                    return PersonId;
+                }
+            }
+
+            IQueryable<Person> result = null;
+            Func<bool> hasResults = delegate () { return result != null && result.Any(); };
+
+            if (hasEmail && hasFirstAndLastName)
+            {
+                result = people.Where(p => p.EmailAddress == payer.emailAddress
+                    && p.FirstName == payer.firstName && p.LastName == payer.lastName);
+            }
+
+            if (hasEmail && !hasResults())
+            {
+                result = people.Where(p => p.EmailAddress == payer.emailAddress);
+            }
+
+            var cellPhone = payer.mobileNumber.GetDigits();
+            if (hasMobileNumber && hasFirstAndLastName && !hasResults())
+            {
+                result = people.Where(p => p.CellPhone == cellPhone
+                    && p.FirstName == payer.firstName && p.LastName == payer.lastName);
+            }
+
+            if (hasMobileNumber && !hasResults())
+            {
+                result = people.Where(p => p.CellPhone == cellPhone);
+            }
+
+            if (hasFirstAndLastName && !hasResults())
+            {
+                result = people.Where(p => p.FirstName == payer.firstName && p.LastName == payer.lastName);
+            }
+
+            if (hasResults())
+            {
+                PersonId = result.OrderBy(p => p.CreatedDate).Select(p => p.PeopleId).First();
             }
             else
             {
-
-                Person p = Person.Add(db, null, payer.firstName, null, payer.lastName, null);
-                p.EmailAddress = payer.emailAddress;
-                p.CellPhone = payer.mobileNumber;
-
+                Person person = Person.Add(db, null, payer.firstName, null, payer.lastName, null);
+                person.EmailAddress = payer.emailAddress;
+                person.CellPhone = payer.mobileNumber;
+                person.Comments = "Added in context of PushPayImport because record was not found";
                 db.SubmitChanges();
-                return p.PeopleId;
+                PersonId = person.PeopleId;
             }
+            // add extra value
+            if (payer.Key.HasValue())
+            {
+                db.AddExtraValueData(PersonId, PushPayKey, payer.Key, null, null, null, null);
+            }
+            return PersonId;
         }
 
         private ContributionFund ResolveFund(Fund fund)

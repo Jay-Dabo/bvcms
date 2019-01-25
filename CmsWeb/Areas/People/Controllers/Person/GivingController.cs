@@ -6,6 +6,7 @@ using System;
 using System.Linq;
 using System.Web.Mvc;
 using UtilityExtensions;
+using TransactionGateway;
 
 namespace CmsWeb.Areas.People.Controllers
 {
@@ -122,7 +123,7 @@ namespace CmsWeb.Areas.People.Controllers
 
         [HttpGet]
         public ActionResult OneTimeGift()
-        {
+        {            
             var oid = CmsData.API.APIContribution.OneTimeGiftOrgId(CurrentDatabase);
             if (oid > 0)
             {
@@ -131,6 +132,5 @@ namespace CmsWeb.Areas.People.Controllers
 
             return new EmptyResult();
         }
-
     }
 }
