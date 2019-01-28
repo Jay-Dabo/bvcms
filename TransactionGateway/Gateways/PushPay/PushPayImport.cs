@@ -14,7 +14,7 @@ namespace TransactionGateway
         private const string PushPayKey = "PushPayKey";
         private CMSDataContext db;
 
-        private DateTime startDate;
+        private DateTime StartDate;
         private int OnBatchPage;
         private bool InitialPass;
         private PushPayLog LastImport;
@@ -64,97 +64,97 @@ namespace TransactionGateway
 
             
         }
-        public async Task<int> Run()
-        {
-            if (_pushpay is null)
-                return 0;                        
-#if DEBUG
-            try
-            {
-                return await RunInternal();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("PushPay error");
-                Console.WriteLine(ex.Message);
-                Console.ReadKey();
-                Environment.Exit(1);
-                return 0;
-            }
-#else
-            return await RunInternal();
-#endif
-        }
+//        public async Task<int> Run()
+//        {
+//            if (_pushpay is null)
+//                return 0;                        
+//#if DEBUG
+//            try
+//            {
+//                return await RunInternal();
+//            }
+//            catch (Exception ex)
+//            {
+//                Console.WriteLine("PushPay error");
+//                Console.WriteLine(ex.Message);
+//                Console.ReadKey();
+//                Environment.Exit(1);
+//                return 0;
+//            }
+//#else
+//            return await RunInternal();
+//#endif
+//        }
 
-        private async Task<int> RunInternal()
-        {
-            int Count = 0;
-            var MerchantList = await _pushpay.GetMerchants();
-            foreach (Merchant merchant in MerchantList)
-            {
-                // initial pass - get last run data and start there
-                Init(merchant.Key);
+        //private async Task<int> RunInternal()
+        //{
+        //    int Count = 0;
+        //    var MerchantList = await _pushpay.GetMerchants();
+        //    foreach (Merchant merchant in MerchantList)
+        //    {
+        //        // initial pass - get last run data and start there
+        //        Init(merchant.Key);
 
-                bool HasBatchesToProcess = true;
+        //        bool HasBatchesToProcess = true;
 
-                while (HasBatchesToProcess)
-                {
-                    BatchList batches = await _pushpay.GetBatchesForMerchantSince(merchant.Key, startDate, OnBatchPage);
-                    int BatchPages = (batches.TotalPages.HasValue ? (int)batches.TotalPages : 1);
+        //        while (HasBatchesToProcess)
+        //        {
+        //            BatchList batches = await _pushpay.GetBatchesForMerchantSince(merchant.Key, StartDate, OnBatchPage);
+        //            int BatchPages = (batches.TotalPages.HasValue ? (int)batches.TotalPages : 1);
 
-                    foreach (Batch batch in batches.Items)
-                    {
-                        BundleHeader bundle = ResolveBatch(batch);
+        //            foreach (Batch batch in batches.Items)
+        //            {
+        //                BundleHeader bundle = ResolveBatch(batch);
 
-                        int OnPaymentPage = 0;
-                        bool HasPaymentsToProcess = true;
+        //                int OnPaymentPage = 0;
+        //                bool HasPaymentsToProcess = true;
 
-                        while (HasPaymentsToProcess)
-                        {
-                            PaymentList payments = await _pushpay.GetPaymentsForBatch(merchant.Key, batch.Key, OnPaymentPage);
-                            int PaymentPages = (payments.TotalPages.HasValue ? (int)payments.TotalPages : 1);
+        //                while (HasPaymentsToProcess)
+        //                {
+        //                    PaymentList payments = await _pushpay.GetPaymentsForBatch(merchant.Key, batch.Key, OnPaymentPage);
+        //                    int PaymentPages = (payments.TotalPages.HasValue ? (int)payments.TotalPages : 1);
 
-                            foreach (Payment payment in payments.Items)
-                            {
-                                if (!InitialPass || !TransactionAlreadyImported(batch.Key, payment.TransactionId)) {
-                                    Console.WriteLine("Payment " + payment.TransactionId);
+        //                    foreach (Payment payment in payments.Items)
+        //                    {
+        //                        if (!InitialPass || !TransactionAlreadyImported(batch.Key, payment.TransactionId)) {
+        //                            Console.WriteLine("Payment " + payment.TransactionId);
 
-                                    // resolve the payer, fund, and payment
-                                    int? PersonId = ResolvePersonId(payment.Payer);
-                                    ContributionFund fund = ResolveFund(payment.Fund);
-                                    Contribution contribution = ResolvePayment(payment, fund, PersonId, bundle);
+        //                            // resolve the payer, fund, and payment
+        //                            int? PersonId = ResolvePersonId(payment.Payer);
+        //                            ContributionFund fund = ResolveFund(payment.Fund);
+        //                            Contribution contribution = ResolvePayment(payment, fund, PersonId, bundle);
 
-                                    // mark this payment as imported
-                                    RecordImportProgress(merchant, batch, payment.TransactionId);
-                                }
-                            }
+        //                            // mark this payment as imported
+        //                            RecordImportProgress(merchant, batch, payment.TransactionId);
+        //                        }
+        //                    }
 
-                            // done with this page of payments, see if there's more
+        //                    // done with this page of payments, see if there's more
 
-                            InitialPass = false;
-                            if (PaymentPages > OnPaymentPage + 1)
-                            {
-                                OnPaymentPage++;
-                            }
-                            else
-                            {
-                                HasPaymentsToProcess = false;
-                            }
-                        }
-                    }
-                    // done with this page of batches, see if there's more
-                    if (BatchPages > OnBatchPage + 1)
-                    {
-                        OnBatchPage++;
-                    }
-                    else
-                    {
-                        HasBatchesToProcess = false;
-                    }
-                }
-            }
-            return Count;
-        }
+        //                    InitialPass = false;
+        //                    if (PaymentPages > OnPaymentPage + 1)
+        //                    {
+        //                        OnPaymentPage++;
+        //                    }
+        //                    else
+        //                    {
+        //                        HasPaymentsToProcess = false;
+        //                    }
+        //                }
+        //            }
+        //            // done with this page of batches, see if there's more
+        //            if (BatchPages > OnBatchPage + 1)
+        //            {
+        //                OnBatchPage++;
+        //            }
+        //            else
+        //            {
+        //                HasBatchesToProcess = false;
+        //            }
+        //        }
+        //    }
+        //    return Count;
+        //}
 
         private Contribution ResolvePayment(Payment payment, ContributionFund fund, int? PersonId, BundleHeader bundle)
         {
@@ -358,46 +358,54 @@ namespace TransactionGateway
             return result;
         }
 
-        private void Init(string merchantkey)
+        private void Init(string orgkey)
         {
-            InitialPass = true;
-
             // load initial import status so we can start where we left off
+            var startDateSetting = db.Setting("PushPayImportStartDate", "");
+            if (startDateSetting.HasValue() && DateTime.TryParse(startDateSetting, out StartDate))
+            {
+                db.SetSetting("PushPayImportStartDate", null);
+                db.SubmitChanges();
+                return;
+            }
+
             IQueryable<PushPayLog> logs = db.PushPayLogs.AsQueryable();
 
             var result = (from l in logs
-                         where l.MerchantKey == merchantkey
-                         orderby l.Id descending
-                         select l).Take(1);
-            int count = result.Count();
-            if (count == 1)
+                          where l.OrganizationKey == orgkey
+                          orderby l.TransactionDate descending
+                          select l);
+
+            if (result.Any())
             {
-                long id = result.Select(l => l.Id).SingleOrDefault();
-                LastImport = db.PushPayLogs.SingleOrDefault(l => l.Id == id);
-                startDate = (DateTime)LastImport.BatchDate;
-                OnBatchPage = (int)LastImport.BatchPage;
+                StartDate = ((DateTime)result.Select(l => l.TransactionDate).First());
             }
             else
             {
-                startDate = new DateTime(1970, 1, 1);
-                OnBatchPage = 0;
+                StartDate = new DateTime(1970, 1, 1);
             }
         }
 
-        private void RecordImportProgress(Merchant merchant, Batch batch, string transactionId)
-        {
-            // record our import status so that we can recover if need be
-            PushPayLog log = new PushPayLog
-            {
-                BatchPage = OnBatchPage,
-                BatchDate = batch.CreatedOn,
-                BatchKey = batch.Key,
-                MerchantKey = merchant.Key,
-                TransactionId = transactionId,
-                ImportDate = DateTime.Now
-            };
-            db.PushPayLogs.InsertOnSubmit(log);
-            db.SubmitChanges();
-        }
+        //private void RecordImportProgress(Organization org, BundleHeader bundle, Contribution contribution, Payment payment)
+        //{
+        //    // record our import status so that we can recover if need be; also useful for debugging
+        //    PushPayLog log = new PushPayLog
+        //    {
+        //        // TouchPoint values
+        //        BundleHeaderId = bundle.BundleHeaderId,
+        //        ContributionId = contribution.ContributionId,
+
+        //        // PushPay values
+        //        OrganizationKey = org.Key,
+        //        SettlementKey = payment.Settlement?.Key,
+        //        BatchKey = payment.Batch?.Key,
+        //        TransactionDate = payment.UpdatedOn,
+        //        TransactionId = payment.TransactionId,
+
+        //        ImportDate = DateTime.Now,
+        //    };
+        //    db.PushPayLogs.InsertOnSubmit(log);
+        //    db.SubmitChanges();
+        //}
     }
 }
