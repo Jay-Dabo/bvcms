@@ -4,6 +4,6 @@ namespace TransactionGateway.ApiModels
 {
     public class PaymentList : BaseResponse
     {
-        public IEnumerable<Payment> Items { get; set; }
+        public List<Payment> Items { get; set; }
     }
 }

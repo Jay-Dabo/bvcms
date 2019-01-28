@@ -8,8 +8,10 @@ using TransactionGateway.Entities;
 using System.Net.Http;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
+using UtilityExtensions;
+using System.Linq;
 using System.Web.Mvc;
-
+using Organization = TransactionGateway.ApiModels.Organization;
 
 namespace TransactionGateway
 {
@@ -43,10 +45,10 @@ namespace TransactionGateway
             db = db_context;
         }
 
-        public PushpayConnection(string refresh_token, CMSDataContext db_context, string pushpayAPIBaseUrl)
-        {            
+        public PushpayConnection(string access_token, string refresh_token, CMSDataContext db_context)
+        {
+            accessToken = access_token;
             refreshToken = refresh_token;
-            _pushpayAPIBaseUrl = pushpayAPIBaseUrl;
             db = db_context;
         }
 
@@ -131,8 +133,6 @@ namespace TransactionGateway
 
         public async Task<AccessToken> AuthorizationCodeCallback(string _authCode)
         {
-
-
             // exchange authorization code at authorization server for an access and refresh token
             Dictionary<string, string> post = null;
             post = new Dictionary<string, string>
@@ -195,55 +195,102 @@ namespace TransactionGateway
 
         public async Task<IEnumerable<Merchant>> GetMerchants()
         {
-            ApiClient client = await CreateClient();
-            MerchantList result = await client.Init("my/merchants", "Loading merchant list").Execute<MerchantList>();
+            var result = await GET<MerchantList>("my/merchants");
             return result.Items;
         }        
 
         public async Task<Merchant> GetMerchant(string merchantKey)
         {
-            ApiClient client = await CreateClient();
-            Merchant result = await client.Init($"merchant/{merchantKey}", "Loading merchant details").SetMethod(RequestMethodTypes.GET).Execute<Merchant>();
-            return result;
+            return await GET<Merchant>($"merchant/{merchantKey}");
+        }
+
+        public async Task<Batch> GetBatch(string merchantKey, string batchKey)
+        {
+            return await GET<Batch>($"merchant/{merchantKey}/batch/{batchKey}");
         }
 
         public async Task<BatchList> GetBatchesForMerchantSince(string merchantKey, DateTime startDate, int page = 0)
         {
-            // GET /v1/merchant/{merchantKey}/batches?from=2018-01-01T00:00:00Z
-            ApiClient client = await CreateClient();
-            BatchList result = await client.Init($"merchant/{merchantKey}/batches?from={startDate}&page={page}", "Loading batches").SetMethod(RequestMethodTypes.GET).Execute<BatchList>();
-            return result;
+            return await GET<BatchList>($"merchant/{merchantKey}/batches?from={format(startDate)}&page={page}");
+        }
+
+        public async Task<PaymentList> GetPaymentsForMerchantSince(string merchantKey, DateTime startDate, int page = 0)
+        {
+            // todo: add payment types filter to query
+            return await GET<PaymentList>($"merchant/{merchantKey}/payments?updatedFrom={format(startDate)}&page={page}");
         }
 
         public async Task<FundList> GetFundsForMerchant(string merchantKey)
         {
-            // GET /v1/merchant/{merchantKey}/funds
-            ApiClient client = await CreateClient();
-            FundList result = await client.Init($"merchant/{merchantKey}/funds", "Loading funds").SetMethod(RequestMethodTypes.GET).Execute<FundList>();
-            return result;
+            return await GET<FundList>($"merchant/{merchantKey}/funds");
         }
 
         public async Task<PaymentList> GetPaymentsForBatch(string merchantKey, string batchKey, int page = 0)
         {
             // GET /v1/merchant/{merchantKey}/batch/{batchKey}/payments
-            ApiClient client = await CreateClient();
-            PaymentList result = await client.Init($"merchant/{merchantKey}/batch/{batchKey}/payments?page={page}", "Loading payments").SetMethod(RequestMethodTypes.GET).Execute<PaymentList>();
-            return result;
+            return await GET<PaymentList>($"merchant/{merchantKey}/batch/{batchKey}/payments?page={page}");
         }
 
         public async Task<IEnumerable<Merchant>> SearchMerchants(string handle, int page = 0, int pageSize = 25)
         {
-            // GET /v1/merchants
-            ApiClient client = await CreateClient();
-            MerchantList result = await client.Init($"merchants?handle={handle}&page={page}&pageSize={pageSize}", "Loading merchants").SetMethod(RequestMethodTypes.GET).Execute<MerchantList>();
+            var result = await GET<MerchantList>($"merchants?handle={handle}&page={page}&pageSize={pageSize}");
             return result.Items;
+        }
+
+        public async Task<IEnumerable<Organization>> GetOrganizations()
+        {
+            var result = await GET<OrganizationList>("organizations/in-scope?status=Active");
+            return result.Items;
+        }
+
+        public async Task<Organization> GetOrganization(string orgKey)
+        {
+            return await GET<Organization>($"organization/{orgKey}");
+        }
+
+        public async Task<PaymentList> GetPaymentsForOrganizationSince(string orgKey, DateTime startdate, int page = 0)
+        {
+            var list = await GET<PaymentList>($"organization/{orgKey}/payments?status=Success&updatedFrom={format(startdate)}&page={page}");
+            var splitPayments = new List<Payment>();
+            foreach (var payment in list.Items)
+            {
+                if (payment.SplitPaymentKey.HasValue())
+                {
+                    splitPayments.AddRange((await GetSplitPayment(payment.Recipient.Key, payment.SplitPaymentKey)).Items);
+                }
+            }
+            list.Items.AddRange(splitPayments);
+            list.Items = list.Items.OrderBy(p => p.UpdatedOn).Distinct(Payment.Comparer).ToList();
+            return list;
+        }
+
+        private string format(DateTime value)
+        {
+            return value.ToString("s", System.Globalization.CultureInfo.InvariantCulture) + "Z";
+        }
+
+        public async Task<Settlement> GetSettlement(string settlementKey)
+        {
+            return await GET<Settlement>($"settlement/{settlementKey}");
+        }
+
+        public async Task<PaymentList> GetSplitPayment(string merchantKey, string paymentKey)
+        {
+            return await GET<PaymentList>($"merchant/{merchantKey}/splitpayment/{paymentKey}");
         }
 
         public async Task<Payment> GetPayment(string merchantKey, string paymentToken)
         {
-            // GET /v1/merchant/{merchantKey}/payment/{token}
+            return await GET<Payment>($"merchant/{merchantKey}/payment/{paymentToken}");
+        }
+        private async Task<T> GET<T>(string url) where T : BaseResponse
+        {
+            if (Util.IsDebug())
+            {
+                Console.WriteLine($"GET {url}");
+            }
             ApiClient client = await CreateClient();
-            Payment result = await client.Init($"merchant/{merchantKey}/payment/{paymentToken}", "Loading payment").SetMethod(RequestMethodTypes.GET).Execute<Payment>();
+            T result = await client.Init(url).SetMethod(RequestMethodTypes.GET).Execute<T>();
             return result;
         }
 

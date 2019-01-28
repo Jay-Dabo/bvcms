@@ -1,4 +1,5 @@
 ﻿using CmsData;
+using CmsData.Codes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,7 +48,7 @@ namespace TransactionGateway
             return await _pushpay.GetPayment(merchants.FirstOrDefault().Key, paymentToken);            
         }
 
-        public static string OneTimeRedirect(string PushpayAPIBaseUrl, string Merchant, Person person, Organization organization)
+        public static string OneTimeRedirect(string PushpayAPIBaseUrl, string Merchant, Person person, CmsData.Organization organization)
         {
             string givingLink = String.Format("{0}/{1}", PushpayAPIBaseUrl, Merchant);
             string sr = String.Format("Org_{0}", organization.OrganizationId);
@@ -201,5 +202,53 @@ namespace TransactionGateway
                 return f;
             }
         }
+
+        //public async Task<BundleHeader> ResolveSettlement(Settlement settlement, CMSDataContext db)
+        //{
+        //    // take a pushpay settlement and find or create a touchpoint bundle
+        //    IQueryable<BundleHeader> bundles = db.BundleHeaders.AsQueryable();
+
+        //    var result = from b in bundles
+        //                 where b.ReferenceId == settlement.Key
+        //                 where b.ReferenceIdType == BundleReferenceIdTypeCode.PushPaySettlement
+        //                 select b;
+        //    if (result.Any())
+        //    {
+        //        int id = result.Select(b => b.BundleHeaderId).SingleOrDefault();
+        //        return db.BundleHeaders.SingleOrDefault(b => b.BundleHeaderId == id);
+        //    }
+        //    else
+        //    {
+        //        if (settlement.TotalAmount == null || settlement.TotalAmount.Amount == 0)
+        //        {
+        //            settlement = await _pushpay.GetSettlement(settlement.Key);
+        //        }
+        //        return CreateBundle(settlement.EstimatedDepositDate.ToLocalTime(), settlement.TotalAmount?.Amount, null, null, settlement.Key, BundleReferenceIdTypeCode.PushPaySettlement);
+        //    }
+        //}
+
+        //public BundleHeader CreateBundle(DateTime CreatedOn, decimal? BundleTotal, decimal? TotalCash, decimal? TotalChecks, string RefId, int? RefIdType)
+        //{
+        //    // create a touchpoint bundle
+        //    BundleHeader bh = new BundleHeader
+        //    {
+        //        ChurchId = 1,
+        //        CreatedBy = 1,
+        //        CreatedDate = CreatedOn,
+        //        RecordStatus = false,
+        //        BundleStatusId = BundleStatusCode.OpenForDataEntry,
+        //        ContributionDate = CreatedOn,
+        //        BundleHeaderTypeId = BundleTypeCode.Online,
+        //        DepositDate = null,
+        //        BundleTotal = BundleTotal,
+        //        TotalCash = TotalCash,
+        //        TotalChecks = TotalChecks,
+        //        ReferenceId = RefId,
+        //        ReferenceIdType = RefIdType
+        //    };
+        //    db.BundleHeaders.InsertOnSubmit(bh);
+        //    db.SubmitChanges();
+        //    return bh;
+        //}
     }
 }

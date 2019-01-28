@@ -99,6 +99,8 @@
     <Compile Include="ApiModels\Merchant.cs" />
     <Compile Include="ApiModels\MerchantList.cs" />
     <Compile Include="ApiModels\Money.cs" />
+    <Compile Include="ApiModels\Organization.cs" />
+    <Compile Include="ApiModels\OrganizationList.cs" />
     <Compile Include="ApiModels\Payer.cs" />
     <Compile Include="ApiModels\Payment.cs" />
     <Compile Include="ApiModels\PaymentList.cs" />
