@@ -15,6 +15,7 @@ using UtilityExtensions;
 using TransactionGateway;
 using TransactionGateway.ApiModels;
 using CmsData.Finance;
+using CmsData.Codes;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
@@ -30,7 +31,10 @@ namespace CmsWeb.Areas.Setup.Controllers
         public PushpayController(RequestManager requestManager)
         {
             RequestManager = requestManager;
-            _pushpay = new PushpayConnection("", "", CurrentDatabase,
+            _pushpay = new PushpayConnection(
+                CurrentDatabase.GetSetting("PushPayAccessToken", ""),
+                CurrentDatabase.GetSetting("PushPayRefreshToken", ""),
+                CurrentDatabase,
                 Configuration.Current.PushpayAPIBaseUrl,
                 Configuration.Current.PushpayClientID,
                 Configuration.Current.PushpayClientSecret,
@@ -135,63 +139,34 @@ namespace CmsWeb.Areas.Setup.Controllers
         { return View(); }
 
         [AllowAnonymous, Route("~/Pushpay/CompletePayment")]
-        public async Task<ActionResult> CompletePayment(string paymentToken, string rc)
+        public async Task<ActionResult> CompletePayment(string paymentToken, string sr)
         {
-            var _pushpayPayment = new PushPayPayment(CurrentDatabase, Configuration.Current.PushpayAPIBaseUrl,
-                Configuration.Current.PushpayClientID,
-                Configuration.Current.PushpayClientSecret,
-                Configuration.Current.OAuth2TokenEndpoint,
-                Configuration.Current.TouchpointAuthServer,
-                Configuration.Current.OAuth2AuthorizeEndpoint);
+            var pushpayPayment = new PushPayPayment(_pushpay);
+            var resolver = new PushPayResolver(CurrentDatabase, _pushpay);
+            var orgId = Int32.Parse(sr.Substring(4));
 
-            Payment payment = await _pushpayPayment.GetPayment(paymentToken, CurrentDatabase.GetSetting("PushpayMerchant", ""));
+            Payment payment = await pushpayPayment.GetPayment(paymentToken, CurrentDatabase.GetSetting("PushpayMerchant", ""));
 
-            //if (payment.Settlement?.Key.HasValue() == true)
-            //{
-            //     var bundle = await ResolveSettlement(payment.Settlement);
-            //}
-
-            int? peopleid = _pushpayPayment.ResolvePersonId(payment.Payer, CurrentDatabase);
-            ContributionFund fund = _pushpayPayment.ResolveFund(payment.Fund, CurrentDatabase);
-
-
-            if (payment != null)
+            if (payment != null && !resolver.TransactionAlreadyImported(payment))
             {
-                //var ti = new Transaction
-                //{
-                //    Name = r.Payer.fullName,
-                //    First = r.Payer.firstName,
-                //    MiddleInitial = "",
-                //    Last = r.Payer.lastName,
-                //    Suffix = "",
-                //    Donate = t.Donate,
-                //    Amtdue = payment.Amount,
-                //    Amt = payment.Amount.Amount,
-                //    Emails = payment.Payer.emailAddress,
-                //    Testing = t.Testing,
-                //    Description = t.Description,
-                //    OrgId = t.OrgId,
-                //    Url = t.Url,
-                //    Address = t.Address,
-                //    TransactionGateway = "Pushpay",
-                //    City = t.City,
-                //    State = t.State,
-                //    Zip = t.Zip,
-                //    DatumId = t.DatumId,
-                //    Phone = t.Phone,
-                //    OriginalId = t.OriginalId ?? t.Id,
-                //    Financeonly = t.Financeonly,
-                //    TransactionDate = Util.Now,
-                //    PaymentType = t.PaymentType,
-                //    LastFourCC = t.LastFourCC,
-                //    LastFourACH = t.LastFourACH
-                //};
+                // determine the batch to put the payment in
+                BundleHeader bundle;
+                if (payment.Settlement?.Key.HasValue() == true)
+                {
+                    bundle = await resolver.ResolveSettlement(payment.Settlement);
+                }
+                else
+                {
+                    // create a new bundle for each payment not part of a PushPay batch or settlement
+                    bundle = resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
+                }
 
-                //var staff = CurrentDatabase.StaffPeopleForOrg(34);
-                //var body = GivingConfirmation.PostAndBuild(CurrentDatabase, staff, p.person, p.setting.Body, 34, p.FundItemsChosen(), Transaction, desc,
-                //    p.setting.DonationFundId);
-            }
-            
+                int? PersonId = resolver.ResolvePersonId(payment.Payer);
+                ContributionFund fund = resolver.ResolveFund(payment.Fund);
+                Contribution contribution = resolver.ResolvePayment(payment, fund, PersonId, bundle);
+
+                Transaction transaction = resolver.ResolveTransaction(payment, PersonId.Value, orgId);
+            }            
             return View();
         }
 
