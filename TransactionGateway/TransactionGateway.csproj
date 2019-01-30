@@ -120,6 +120,7 @@
     <Compile Include="Gateways\Acceptiva\AcceptivaPayment.cs" />
     <Compile Include="Gateways\ApiClient.cs" />
     <Compile Include="Gateways\IApiClient.cs" />
+    <Compile Include="Gateways\PushPay\PushPayResolver.cs" />
     <Compile Include="Gateways\PushPay\PushPayConnection.cs" />
     <Compile Include="Gateways\PushPay\PushPayImport.cs" />
     <Compile Include="Gateways\PushPay\PushPayPayment.cs" />
