@@ -91,7 +91,6 @@ namespace CmsWeb.Areas.Setup.Controllers
             return Redirect("~/Home/Index");
         }
 
-
         [Route("~/Pushpay/Save")]
         public ActionResult Save(string _at, string _rt)
         {
@@ -141,10 +140,9 @@ namespace CmsWeb.Areas.Setup.Controllers
         [AllowAnonymous, Route("~/Pushpay/CompletePayment")]
         public async Task<ActionResult> CompletePayment(string paymentToken, string sr)
         {
-            var pushpayPayment = new PushPayPayment(_pushpay);
+            int orgId = Int32.Parse(sr.Substring(4));
+            PushPayPayment pushpayPayment = new PushPayPayment(_pushpay);
             var resolver = new PushPayResolver(CurrentDatabase, _pushpay);
-            var orgId = Int32.Parse(sr.Substring(4));
-
             Payment payment = await pushpayPayment.GetPayment(paymentToken, CurrentDatabase.GetSetting("PushpayMerchant", ""));
 
             if (payment != null && !resolver.TransactionAlreadyImported(payment))
@@ -160,11 +158,9 @@ namespace CmsWeb.Areas.Setup.Controllers
                     // create a new bundle for each payment not part of a PushPay batch or settlement
                     bundle = resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
                 }
-
                 int? PersonId = resolver.ResolvePersonId(payment.Payer);
                 ContributionFund fund = resolver.ResolveFund(payment.Fund);
                 Contribution contribution = resolver.ResolvePayment(payment, fund, PersonId, bundle);
-
                 Transaction transaction = resolver.ResolveTransaction(payment, PersonId.Value, orgId);
             }            
             return View();

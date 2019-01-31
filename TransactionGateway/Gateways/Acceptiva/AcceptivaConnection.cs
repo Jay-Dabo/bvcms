@@ -1,8 +1,4 @@
 ﻿using CmsData;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
 
 namespace TransactionGateway.Gateways.Acceptiva
 {
@@ -19,7 +15,5 @@ namespace TransactionGateway.Gateways.Acceptiva
             _refreshToken = "";
             db = db_context;
         }
-    }
-
-    
+    }    
 }

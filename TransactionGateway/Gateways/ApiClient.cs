@@ -74,7 +74,6 @@ namespace TransactionGateway
         ///     Clears our parameters etc, so we can make another call
         /// </summary>
         private ApiClient Reset()
-
         {
             _requestDetails.ClearParameters();
 
@@ -168,7 +167,6 @@ namespace TransactionGateway
                 }
             } while (!readyForProcessing);
 
-
             PushPayRateLimiter.Instance.ResetDelay();
 
             // If it's an error, we parse out exception and throw
@@ -191,7 +189,6 @@ namespace TransactionGateway
             }
 
             var result = responseDetails.JSON.FromJSON<T>();
-
             return result;
         }
 

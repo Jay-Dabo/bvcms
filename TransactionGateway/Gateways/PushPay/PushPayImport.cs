@@ -1,183 +1,163 @@
 ﻿using System;
+using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CmsData;
 using CmsData.Codes;
+using TransactionGateway;
 using TransactionGateway.ApiModels;
-using System.Data.SqlClient;
 using UtilityExtensions;
+using Organization = TransactionGateway.ApiModels.Organization;
 
-namespace TransactionGateway
+namespace PushPay
 {
-    public class PushPayImport
+    class PushPayImport
     {
         private const string PushPayKey = "PushPayKey";
+        private const string PushPayTransactionNum = "PushPay Transaction #";
+        private PushpayConnection pushpay;
         private CMSDataContext db;
 
         private DateTime StartDate;
-        private int OnBatchPage;
-        private bool InitialPass;
-        private PushPayLog LastImport;
+        private bool ImportUnreconciled;
 
-        //Pushpay
-        private PushpayConnection _pushpay;
-        private readonly string _access_token;
-        private readonly string _refresh_token;
-        private readonly string _pushpayAPIBaseUrl;
-        private readonly string _pushpayClientID;
-        private readonly string _pushpayClientSecret;
-        private readonly string _oAuth2AuthorizeEndpoint;
-        private readonly string _touchpointAuthServer;
-        private readonly string _oAuth2TokenEndpoint;
-        
-        public PushPayImport(string dbname, string connstr, string pushpayAPIBaseUrl,
-            string pushpayClientID, string pushpayClientSecret, string oAuth2AuthorizeEndpoint,
-            string touchpointAuthServer, string oAuth2TokenEndpoint)
+        public PushPayImport(string dbname, string connstr)
         {
             var cb = new SqlConnectionStringBuilder(connstr) { InitialCatalog = dbname };
             var host = dbname.Split(new char[] { '_' }, 2)[1];
             db = CMSDataContext.Create(cb.ConnectionString, host);
-
-            
-            _pushpayAPIBaseUrl = pushpayAPIBaseUrl;
-            _pushpayClientID = pushpayClientID;
-            _pushpayClientSecret = pushpayClientSecret;
-            _oAuth2AuthorizeEndpoint = oAuth2AuthorizeEndpoint;
-            _touchpointAuthServer = touchpointAuthServer;
-            _oAuth2TokenEndpoint = oAuth2TokenEndpoint;
-
-
-            if (db.Setting("PushPayEnableImport"))
-            {                
-                _access_token = db.GetSetting("PushpayAccessToken", "");
-                _refresh_token = db.GetSetting("PushpayRefreshToken", "");
-
-                _pushpay = new PushpayConnection(_access_token, _refresh_token, db,
-                _pushpayClientID,
-                _pushpayClientSecret,
-                _oAuth2TokenEndpoint,
-                _pushpayAPIBaseUrl,
-                _touchpointAuthServer,
-                _oAuth2AuthorizeEndpoint
-                );
-            }
-
-            
         }
-//        public async Task<int> Run()
-//        {
-//            if (_pushpay is null)
-//                return 0;                        
-//#if DEBUG
-//            try
-//            {
-//                return await RunInternal();
-//            }
-//            catch (Exception ex)
-//            {
-//                Console.WriteLine("PushPay error");
-//                Console.WriteLine(ex.Message);
-//                Console.ReadKey();
-//                Environment.Exit(1);
-//                return 0;
-//            }
-//#else
-//            return await RunInternal();
-//#endif
-//        }
 
-        //private async Task<int> RunInternal()
-        //{
-        //    int Count = 0;
-        //    var MerchantList = await _pushpay.GetMerchants();
-        //    foreach (Merchant merchant in MerchantList)
-        //    {
-        //        // initial pass - get last run data and start there
-        //        Init(merchant.Key);
-
-        //        bool HasBatchesToProcess = true;
-
-        //        while (HasBatchesToProcess)
-        //        {
-        //            BatchList batches = await _pushpay.GetBatchesForMerchantSince(merchant.Key, StartDate, OnBatchPage);
-        //            int BatchPages = (batches.TotalPages.HasValue ? (int)batches.TotalPages : 1);
-
-        //            foreach (Batch batch in batches.Items)
-        //            {
-        //                BundleHeader bundle = ResolveBatch(batch);
-
-        //                int OnPaymentPage = 0;
-        //                bool HasPaymentsToProcess = true;
-
-        //                while (HasPaymentsToProcess)
-        //                {
-        //                    PaymentList payments = await _pushpay.GetPaymentsForBatch(merchant.Key, batch.Key, OnPaymentPage);
-        //                    int PaymentPages = (payments.TotalPages.HasValue ? (int)payments.TotalPages : 1);
-
-        //                    foreach (Payment payment in payments.Items)
-        //                    {
-        //                        if (!InitialPass || !TransactionAlreadyImported(batch.Key, payment.TransactionId)) {
-        //                            Console.WriteLine("Payment " + payment.TransactionId);
-
-        //                            // resolve the payer, fund, and payment
-        //                            int? PersonId = ResolvePersonId(payment.Payer);
-        //                            ContributionFund fund = ResolveFund(payment.Fund);
-        //                            Contribution contribution = ResolvePayment(payment, fund, PersonId, bundle);
-
-        //                            // mark this payment as imported
-        //                            RecordImportProgress(merchant, batch, payment.TransactionId);
-        //                        }
-        //                    }
-
-        //                    // done with this page of payments, see if there's more
-
-        //                    InitialPass = false;
-        //                    if (PaymentPages > OnPaymentPage + 1)
-        //                    {
-        //                        OnPaymentPage++;
-        //                    }
-        //                    else
-        //                    {
-        //                        HasPaymentsToProcess = false;
-        //                    }
-        //                }
-        //            }
-        //            // done with this page of batches, see if there's more
-        //            if (BatchPages > OnBatchPage + 1)
-        //            {
-        //                OnBatchPage++;
-        //            }
-        //            else
-        //            {
-        //                HasBatchesToProcess = false;
-        //            }
-        //        }
-        //    }
-        //    return Count;
-        //}
-
-        private Contribution ResolvePayment(Payment payment, ContributionFund fund, int? PersonId, BundleHeader bundle)
+        public async Task<int> Run()
         {
-            // take a pushpay payment and create a touchpoint payment
-            IQueryable<Contribution> contributions = db.Contributions.AsQueryable();
-
-            var result = from c in contributions
-                         where c.ContributionDate == payment.CreatedOn
-                         where c.ContributionAmount == payment.Amount.Amount
-                         where c.MetaInfo == "PushPay Transaction #" + payment.TransactionId
-                         select c;
-            int count = result.Count();
-            if (count == 1)
+            if (db.Setting("PushPayEnableImport"))
             {
-                int id = result.Select(c => c.ContributionId).SingleOrDefault();
-                return db.Contributions.SingleOrDefault(c => c.ContributionId == id);
+#if DEBUG
+                Console.WriteLine("Running PushPay Import for " + db.Host);
+#endif
+                string access_token, refresh_token;
+                access_token = db.GetSetting("PushpayAccessToken", "");
+                refresh_token = db.GetSetting("PushpayRefreshToken", "");
+                pushpay = new PushpayConnection(access_token, refresh_token, db);
+                ImportUnreconciled = db.Setting("PushPayImportUnreconciled");
             }
             else
             {
-                Contribution c = new Contribution
+                return 0;
+            }
+#if DEBUG
+            try
+            {
+                return await RunInternal();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("PushPay error");
+                Console.WriteLine(ex.ToString());
+                Console.ReadKey();
+                Environment.Exit(1);
+                return 0;
+            }
+#else
+            return await RunInternal();
+#endif
+        }
+
+        private async Task<int> RunInternal()
+        {
+            int Count = 0;
+            var organizations = await pushpay.GetOrganizations();
+            foreach (Organization org in organizations)
+            {
+                try
+                {
+                    int OnPaymentPage = 0;
+                    bool HasPaymentsToProcess = true;
+
+                    Init(org.Key);
+
+                    while (HasPaymentsToProcess)
+                    {
+                        PaymentList payments = await pushpay.GetPaymentsForOrganizationSince(org.Key, StartDate, OnPaymentPage);
+                        int PaymentPages = (payments.TotalPages.HasValue ? (int)payments.TotalPages : 1);
+
+                        foreach (Payment payment in payments.Items)
+                        {
+                            var merchantKey = payment.Recipient.Key;
+                            if (!TransactionAlreadyImported(payment))
+                            {
+                                // determine the batch to put the payment in
+                                BundleHeader bundle;
+                                if (payment.Batch?.Key.HasValue() == true)
+                                {
+                                    bundle = await ResolveBatch(payment.Batch, merchantKey);
+                                }
+                                else if (payment.Settlement?.Key.HasValue() == true)
+                                {
+                                    bundle = await ResolveSettlement(payment.Settlement);
+                                }
+                                else
+                                {
+                                    if (ImportUnreconciled)
+                                    {
+                                        // create a new bundle for each payment not part of a PushPay batch or settlement
+                                        bundle = CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
+                                    }
+                                    else
+                                    {
+                                        continue;
+                                    }
+                                }
+
+                                Console.WriteLine("Importing payment " + payment.TransactionId);
+
+                                // resolve the payer, fund, and payment
+                                int? PersonId = ResolvePersonId(payment.Payer);
+                                ContributionFund fund = ResolveFund(payment.Fund);
+                                Contribution contribution = ResolvePayment(payment, fund, PersonId, bundle);
+
+                                // mark this payment as imported
+                                RecordImportProgress(org, bundle, contribution, payment);
+                                Count++;
+                            }
+                        }
+                        // done with this page of payments, see if there's more
+                        if (PaymentPages > OnPaymentPage + 1)
+                        {
+                            OnPaymentPage++;
+                        }
+                        else
+                        {
+                            HasPaymentsToProcess = false;
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    string timestamp = DateTime.UtcNow.ToString("yyyy-dd-MM-HH-mm-ss-fff");
+                    string exception = $"{org.Key}\n{e.ToString()}";
+                    File.WriteAllText($"PushPay{timestamp}-{db.Host}.txt", exception);
+                }
+            }
+            return Count;
+        }
+
+        private Contribution ResolvePayment(Payment payment, ContributionFund fund, int? PersonId, BundleHeader bundle)
+        {
+            // find/create a touchpoint contribution from a pushpay payment
+            Contribution contribution;
+            var result = ContributionWithPayment(payment);
+            if (result.Any())
+            {
+                contribution = result.Single();
+            }
+            else
+            {
+                contribution = new Contribution
                 {
                     PeopleId = PersonId,
-                    ContributionDate = payment.CreatedOn,
+                    ContributionDate = payment.CreatedOn.ToLocalTime(),
                     ContributionAmount = payment.Amount.Amount,
                     ContributionTypeId = (fund.NonTaxDeductible == true) ? ContributionTypeCode.NonTaxDed : ContributionTypeCode.Online,
                     ContributionStatusId = (payment.Amount.Amount >= 0) ? ContributionStatusCode.Recorded : ContributionStatusCode.Reversed,
@@ -185,42 +165,103 @@ namespace TransactionGateway
                     CreatedDate = DateTime.Now,
                     FundId = fund.FundId,
 
-                    MetaInfo = "PushPay Transaction #" + payment.TransactionId
+                    MetaInfo = PushPayTransactionNum + payment.TransactionId
                 };
-                db.Contributions.InsertOnSubmit(c);
+                db.Contributions.InsertOnSubmit(contribution);
                 db.SubmitChanges();
 
                 // assign contribution to bundle
                 BundleDetail bd = new BundleDetail
                 {
                     BundleHeaderId = bundle.BundleHeaderId,
-                    ContributionId = c.ContributionId,
-                    CreatedBy = 1,
+                    ContributionId = contribution.ContributionId,
+                    CreatedBy = 0,
                     CreatedDate = DateTime.Now
                 };
                 db.BundleDetails.InsertOnSubmit(bd);
                 db.SubmitChanges();
-                return c;
             }
-
+            return contribution;
         }
 
-        private BundleHeader ResolveBatch(Batch batch)
+        private IQueryable<Contribution> ContributionWithPayment(Payment payment)
+        {
+            IQueryable<Contribution> contributions = db.Contributions.AsQueryable();
+
+            return
+            from c in contributions
+            where c.ContributionDate == payment.CreatedOn.ToLocalTime()
+            where c.ContributionAmount == payment.Amount.Amount
+            where c.MetaInfo == PushPayTransactionNum + payment.TransactionId
+            select c;
+        }
+
+        private async Task<BundleHeader> ResolveBatch(Batch batch, string merchantKey)
         {
             // take a pushpay batch and find or create a touchpoint bundle
+            IQueryable<BundleHeader> bundles = db.BundleHeaders.AsQueryable();
+
+            var result = from b in bundles
+                         where b.ReferenceId == batch.Key
+                         where b.ReferenceIdType == BundleReferenceIdTypeCode.PushPayBatch
+                         select b;
+            if (result.Any())
+            {
+                int id = result.Select(b => b.BundleHeaderId).SingleOrDefault();
+                return db.BundleHeaders.SingleOrDefault(b => b.BundleHeaderId == id);
+            }
+            else
+            {
+                if (batch.TotalAmount == null || batch.TotalAmount.Amount == 0)
+                {
+                    batch = await pushpay.GetBatch(merchantKey, batch.Key);
+                }
+                return CreateBundle(batch.CreatedOn.ToLocalTime(), batch.TotalAmount?.Amount, batch.TotalCashAmount?.Amount, batch.TotalCheckAmount?.Amount, batch.Key, BundleReferenceIdTypeCode.PushPayBatch);
+            }
+        }
+
+        private async Task<BundleHeader> ResolveSettlement(Settlement settlement)
+        {
+            // take a pushpay settlement and find or create a touchpoint bundle
+            IQueryable<BundleHeader> bundles = db.BundleHeaders.AsQueryable();
+
+            var result = from b in bundles
+                         where b.ReferenceId == settlement.Key
+                         where b.ReferenceIdType == BundleReferenceIdTypeCode.PushPaySettlement
+                         select b;
+            if (result.Any())
+            {
+                int id = result.Select(b => b.BundleHeaderId).SingleOrDefault();
+                return db.BundleHeaders.SingleOrDefault(b => b.BundleHeaderId == id);
+            }
+            else
+            {
+                if (settlement.TotalAmount == null || settlement.TotalAmount.Amount == 0)
+                {
+                    settlement = await pushpay.GetSettlement(settlement.Key);
+                }
+                return CreateBundle(settlement.EstimatedDepositDate.ToLocalTime(), settlement.TotalAmount?.Amount, null, null, settlement.Key, BundleReferenceIdTypeCode.PushPaySettlement);
+            }
+        }
+
+        private BundleHeader CreateBundle(DateTime CreatedOn, decimal? BundleTotal, decimal? TotalCash, decimal? TotalChecks, string RefId, int? RefIdType)
+        {
+            // create a touchpoint bundle
             BundleHeader bh = new BundleHeader
             {
                 ChurchId = 1,
                 CreatedBy = 1,
-                CreatedDate = batch.CreatedOn,
+                CreatedDate = CreatedOn,
                 RecordStatus = false,
                 BundleStatusId = BundleStatusCode.OpenForDataEntry,
-                ContributionDate = batch.CreatedOn,
+                ContributionDate = CreatedOn,
                 BundleHeaderTypeId = BundleTypeCode.Online,
                 DepositDate = null,
-                BundleTotal = batch.TotalAmount.Amount,
-                TotalCash = batch.TotalCashAmount.Amount,
-                TotalChecks = batch.TotalCheckAmount.Amount
+                BundleTotal = BundleTotal,
+                TotalCash = TotalCash,
+                TotalChecks = TotalChecks,
+                ReferenceId = RefId,
+                ReferenceIdType = RefIdType
             };
             db.BundleHeaders.InsertOnSubmit(bh);
             db.SubmitChanges();
@@ -310,6 +351,7 @@ namespace TransactionGateway
             return PersonId;
         }
 
+
         private ContributionFund ResolveFund(Fund fund)
         {
             // take a pushpay fund and find or create a touchpoint fund
@@ -317,11 +359,13 @@ namespace TransactionGateway
 
             var result = from f in funds
                          where f.FundName == fund.Name
+                         where f.FundStatusId > 0
+                         orderby f.FundStatusId
+                         orderby f.FundId descending
                          select f;
-            int count = result.Count();
-            if (count == 1)
+            if (result.Any())
             {
-                int id = result.Select(f => f.FundId).SingleOrDefault();
+                int id = result.Select(f => f.FundId).First();
                 return db.ContributionFunds.SingleOrDefault(f => f.FundId == id);
             }
             else
@@ -335,6 +379,7 @@ namespace TransactionGateway
                 {
                     FundId = fund_id,
                     FundName = fund.Name,
+                    FundStatusId = 1,
                     CreatedDate = DateTime.Now.Date,
                     CreatedBy = 1,
                     FundDescription = fund.Name,
@@ -346,13 +391,17 @@ namespace TransactionGateway
             }
         }
 
-        private bool TransactionAlreadyImported(string batchKey, string transactionId)
+        private bool TransactionAlreadyImported(Payment payment)
+        {
+            return ContributionWithPayment(payment).Any();
+        }
+
+        private bool TransactionAlreadyImported(string transactionId)
         {
             // check if a transaction has already been imported
             IQueryable<PushPayLog> logs = db.PushPayLogs.AsQueryable();
 
             var result = (from l in logs
-                          where l.BatchKey == batchKey
                           where l.TransactionId == transactionId
                           select l).Any();
             return result;
@@ -386,26 +435,26 @@ namespace TransactionGateway
             }
         }
 
-        //private void RecordImportProgress(Organization org, BundleHeader bundle, Contribution contribution, Payment payment)
-        //{
-        //    // record our import status so that we can recover if need be; also useful for debugging
-        //    PushPayLog log = new PushPayLog
-        //    {
-        //        // TouchPoint values
-        //        BundleHeaderId = bundle.BundleHeaderId,
-        //        ContributionId = contribution.ContributionId,
+        private void RecordImportProgress(Organization org, BundleHeader bundle, Contribution contribution, Payment payment)
+        {
+            // record our import status so that we can recover if need be; also useful for debugging
+            PushPayLog log = new PushPayLog
+            {
+                // TouchPoint values
+                BundleHeaderId = bundle.BundleHeaderId,
+                ContributionId = contribution.ContributionId,
 
-        //        // PushPay values
-        //        OrganizationKey = org.Key,
-        //        SettlementKey = payment.Settlement?.Key,
-        //        BatchKey = payment.Batch?.Key,
-        //        TransactionDate = payment.UpdatedOn,
-        //        TransactionId = payment.TransactionId,
+                // PushPay values
+                OrganizationKey = org.Key,
+                SettlementKey = payment.Settlement?.Key,
+                BatchKey = payment.Batch?.Key,
+                TransactionDate = payment.UpdatedOn,
+                TransactionId = payment.TransactionId,
 
-        //        ImportDate = DateTime.Now,
-        //    };
-        //    db.PushPayLogs.InsertOnSubmit(log);
-        //    db.SubmitChanges();
-        //}
+                ImportDate = DateTime.Now,
+            };
+            db.PushPayLogs.InsertOnSubmit(log);
+            db.SubmitChanges();
+        }
     }
 }
