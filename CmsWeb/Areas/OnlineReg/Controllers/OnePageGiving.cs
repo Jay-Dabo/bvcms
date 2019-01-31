@@ -18,7 +18,6 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
         [HttpGet]
         [Route("~/OnePageGiving/{id:int}")]
         public ActionResult OnePageGiving(int id, bool? testing, string source)
-
         {
             Response.NoCache();
             try

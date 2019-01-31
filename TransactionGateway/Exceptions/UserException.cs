@@ -6,6 +6,5 @@ namespace TransactionGateway.Exceptions
     {
         public UserException() : base() { }
         public UserException(string msg) : base(msg) { }
-
     }
 }
