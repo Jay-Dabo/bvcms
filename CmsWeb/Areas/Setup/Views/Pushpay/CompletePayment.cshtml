@@ -1,25 +1,20 @@
-﻿@using UtilityExtensions
+﻿@using CmsWeb.Controllers
 @{
-    ViewBag.Title = "Giving Complete";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    Layout = "~/Views/Shared/OnlineReg2.cshtml";
+    ViewBag.Title = "Pushpay Payment";
+}
+@section scripts
+{
+    @Fingerprint.Script("/Content/touchpoint/js/onlinereg/OnlineReg2.js")
 }
 
-@if ((bool?)ViewBag.hasshell == true)
-{
-    <div class="no-header"></div>
-}
-else
-{
-    <h1 class="form-header">@ViewExtensions2.DbSetting("NameOfChurch", "Giving complete for : " + Util.Host)</h1>
-}
-<div class="row">
-    <div class="col-lg-9">
-        <div class="box box-responsive">
-
-            <div class="box-content">
-                Thank you, your giving was successful.
-            </div>
-        </div>
-    </div>
+<div class="confirm">
+    <h2>Transaction Completed</h2>
+    @ViewBag.Message
+    <br />
+    <a href="/OnlineReg/@ViewBag.OrgId">Start a new transaction</a>
+    @if (MobileAppMenuController.InMobileAppMode)
+    {
+        <a href="@MobileAppMenuController.MobileAppReturnUrl" class="btn btn-primary">Return to Application</a>
+    }
 </div>
-

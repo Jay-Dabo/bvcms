@@ -91,6 +91,7 @@
     <Compile Include="ApiModels\Batch.cs" />
     <Compile Include="ApiModels\BatchList.cs" />
     <Compile Include="ApiModels\Campus.cs" />
+    <Compile Include="ApiModels\Card.cs" />
     <Compile Include="ApiModels\ErrorResponse.cs" />
     <Compile Include="ApiModels\ErrorResultCode.cs" />
     <Compile Include="ApiModels\Fund.cs" />
@@ -104,6 +105,8 @@
     <Compile Include="ApiModels\Payer.cs" />
     <Compile Include="ApiModels\Payment.cs" />
     <Compile Include="ApiModels\PaymentList.cs" />
+    <Compile Include="ApiModels\RecurringPayment.cs" />
+    <Compile Include="ApiModels\RecurringPaymentList.cs" />
     <Compile Include="ApiModels\Settlement.cs" />
     <Compile Include="ApiModels\Transaction.cs" />
     <Compile Include="Common\Extensions\ObjectExtensions.cs" />

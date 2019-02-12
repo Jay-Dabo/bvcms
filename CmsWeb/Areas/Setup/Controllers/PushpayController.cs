@@ -16,6 +16,7 @@ using TransactionGateway;
 using TransactionGateway.ApiModels;
 using CmsData.Finance;
 using CmsData.Codes;
+using CmsData.Registration;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
@@ -27,6 +28,8 @@ namespace CmsWeb.Areas.Setup.Controllers
         private CMSDataContext CurrentDatabase => RequestManager.CurrentDatabase;
 
         private PushpayConnection _pushpay;
+        private string _givingLink;
+        private string _merchantHandle;
 
         public PushpayController(RequestManager requestManager)
         {
@@ -41,6 +44,9 @@ namespace CmsWeb.Areas.Setup.Controllers
                 Configuration.Current.OAuth2TokenEndpoint,
                 Configuration.Current.TouchpointAuthServer,
                 Configuration.Current.OAuth2AuthorizeEndpoint);
+
+            _merchantHandle = CurrentDatabase.Setting("PushpayMerchant", null);
+            _givingLink = $"{Configuration.Current.PushpayGivingLinkBase}/{_merchantHandle}";
         }
 
         /// <summary>
@@ -137,34 +143,112 @@ namespace CmsWeb.Areas.Setup.Controllers
         public ActionResult Finish()
         { return View(); }
 
+        [Route("~/Pushpay/OneTime/{OrgId:int}")]
+        public ActionResult OneTime(int OrgId)
+        {
+            return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&rcv=false");
+        }
+
+        [Route("~/Pushpay/OnePage")]
+        public ActionResult OnePage()
+        {
+            return Redirect($"{_givingLink}?rcv=false");
+        }
+
+        [Route("~/Pushpay/RecurringGiving/{PeopleId:int}")]
+        public ActionResult RecurringGiving(int PeopleId)
+        {
+            PushPayResolver resolver = new PushPayResolver(CurrentDatabase, _pushpay);
+            string PayerKey = resolver.ResolvePayerKey(PeopleId);
+            return Redirect($"{_givingLink}?rcv=false");
+        }
+
         [AllowAnonymous, Route("~/Pushpay/CompletePayment")]
         public async Task<ActionResult> CompletePayment(string paymentToken, string sr)
         {
-            int orgId = Int32.Parse(sr.Substring(4));
-            PushPayPayment pushpayPayment = new PushPayPayment(_pushpay);
-            var resolver = new PushPayResolver(CurrentDatabase, _pushpay);
-            Payment payment = await pushpayPayment.GetPayment(paymentToken, CurrentDatabase.GetSetting("PushpayMerchant", ""));
-
-            if (payment != null && !resolver.TransactionAlreadyImported(payment))
+            try
             {
-                // determine the batch to put the payment in
-                BundleHeader bundle;
-                if (payment.Settlement?.Key.HasValue() == true)
-                {
-                    bundle = await resolver.ResolveSettlement(payment.Settlement);
+                int orgId = Int32.Parse(sr.Substring(4));
+                SetHeaders2(orgId);
+                ViewBag.OrgId = orgId;
+                PushPayPayment pushpayPayment = new PushPayPayment(_pushpay, CurrentDatabase);
+                PushPayResolver resolver = new PushPayResolver(CurrentDatabase, _pushpay);
+
+                int ManageGivingOrg = (from o in CurrentDatabase.Organizations
+                                       where o.RegistrationTypeId == RegistrationTypeCode.ManageGiving
+                                       select o.OrganizationId).FirstOrDefault();
+                if (ManageGivingOrg == orgId)
+                {                                        
+                    RecurringPayment recurringPayment = await pushpayPayment.GetRecurringPayment(paymentToken);
+                    if (recurringPayment.Schedule != null)
+                    {
+                        ViewBag.Message = "Thanks for set up your recurring giving.";
+                        return View();
+                    }
                 }
-                else
+
+                Payment payment = await pushpayPayment.GetPayment(paymentToken);
+
+                if (payment != null && !resolver.TransactionAlreadyImported(payment))
                 {
-                    // create a new bundle for each payment not part of a PushPay batch or settlement
-                    bundle = resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
+                    // determine the batch to put the payment in
+                    BundleHeader bundle;
+                    if (payment.Settlement?.Key.HasValue() == true)
+                    {
+                        bundle = await resolver.ResolveSettlement(payment.Settlement);
+                    }
+                    else
+                    {
+                        // create a new bundle for each payment not part of a PushPay batch or settlement
+                        bundle = resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
+                    }
+                    int? PersonId = resolver.ResolvePersonId(payment.Payer);
+                    ContributionFund fund = resolver.ResolveFund(payment.Fund);
+                    Contribution contribution = resolver.ResolvePayment(payment, fund, PersonId, bundle);
+                    Transaction transaction = resolver.ResolveTransaction(payment, PersonId.Value, orgId);
                 }
-                int? PersonId = resolver.ResolvePersonId(payment.Payer);
-                ContributionFund fund = resolver.ResolveFund(payment.Fund);
-                Contribution contribution = resolver.ResolvePayment(payment, fund, PersonId, bundle);
-                Transaction transaction = resolver.ResolveTransaction(payment, PersonId.Value, orgId);
-            }            
-            return View();
+                ViewBag.Message = "Thank you, your transaction is complete for Online Giving.";
+                return View();
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Message = "Something went wrong";
+                CurrentDatabase.LogActivity($"Error in pushpay payment process: {ex.Message}");
+                return View("~/Views/Shared/PageError.cshtml");
+            }
         }
 
+
+        private void SetHeaders2(int id)
+        {
+            var org = CurrentDatabase.LoadOrganizationById(id);
+            var shell = "";
+            var settings = HttpContext.Items["RegSettings"] as Dictionary<int, Settings>;
+            if ((settings == null || !settings.ContainsKey(id)) && org != null)
+            {
+                var setting = CurrentDatabase.CreateRegistrationSettings(id);
+                shell = CurrentDatabase.ContentOfTypeHtml(setting.ShellBs)?.Body;
+            }
+            if (!shell.HasValue() && settings != null && settings.ContainsKey(id))
+                shell = CurrentDatabase.ContentOfTypeHtml(settings[id].ShellBs)?.Body;
+            if (!shell.HasValue())
+            {
+                shell = CurrentDatabase.ContentOfTypeHtml("ShellDefaultBs")?.Body;
+                if (!shell.HasValue())
+                    shell = CurrentDatabase.ContentOfTypeHtml("DefaultShellBs")?.Body;
+            }
+            if (shell != null && shell.HasValue())
+            {
+                shell = shell.Replace("{title}", ViewBag.Title);
+                var re = new Regex(@"(.*<!--FORM START-->\s*).*(<!--FORM END-->.*)", RegexOptions.Singleline);
+                var t = re.Match(shell).Groups[1].Value.Replace("<!--FORM CSS-->", ViewExtensions2.Bootstrap3Css());
+                ViewBag.hasshell = true;
+                ViewBag.top = t;
+                var b = re.Match(shell).Groups[2].Value;
+                ViewBag.bottom = b;
+            }
+            else
+                ViewBag.hasshell = false;
+        }
     }
 }

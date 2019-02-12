@@ -12,49 +12,67 @@ namespace TransactionGateway
     public class PushPayPayment
     {
         private PushpayConnection _pushpay;
+        private CMSDataContext _db;
+        private string _pushpayGivingBaseUrl, _givingLink, _merchantHandle;
 
-        public PushPayPayment(PushpayConnection Pushpay)
+        public PushPayPayment(PushpayConnection Pushpay, CMSDataContext db)
         {
             _pushpay = Pushpay;
+            _db = db;
+            //_pushpayGivingBaseUrl = PushpayGivingBaseUrl;
+            _merchantHandle = db.GetSetting("PushpayMerchant", null);
+            if (_merchantHandle == null)
+            {
+                throw new Exception("PushpayMerchant Not Found");
+            }
+            //_givingLink = $"{_pushpayGivingBaseUrl}/{_merchantHandle}";
         }
 
-        public async Task<Payment> GetPayment(string paymentToken, string merchantHandle)
+        public async Task<Payment> GetPayment(string paymentToken)
         {
-            IEnumerable<Merchant> merchants = await _pushpay.SearchMerchants(merchantHandle);           
-            return await _pushpay.GetPayment(merchants.FirstOrDefault().Key, paymentToken);            
+            IEnumerable<Merchant> merchants = await _pushpay.SearchMerchants(_merchantHandle);
+            return await _pushpay.GetPayment(merchants.FirstOrDefault().Key, paymentToken);
         }
 
-        public static string OneTimeRedirect(string PushpayGivingBaseUrl, string Merchant, Person person, CmsData.Organization organization)
+        public async Task<RecurringPayment> GetRecurringPayment(string paymentToken)
         {
-            string givingLink = String.Format("{0}/{1}", PushpayGivingBaseUrl, Merchant);
-            string sr = String.Format("Org_{0}", organization.OrganizationId);
-            string ru = Merchant;
-            string rcv = "false";
-            string redirectUrl = givingLink
-                + "?ru=" + ru
-                + "&sr=" + sr
-                + "&rcv=" + rcv;
-
-            return redirectUrl;
+            IEnumerable<Merchant> merchants = await _pushpay.SearchMerchants(_merchantHandle);
+            return await _pushpay.GetRecurringPayment(merchants.FirstOrDefault().Key, paymentToken);
         }
 
-        public static string OnePageRedirect(string PushpayGivingBaseUrl, string Merchant)
+        public async Task<RecurringPaymentList> GetRecurringPaymentsForAPayer(string payerKey)
         {
-            return String.Format("{0}/{1}rcv=false", PushpayGivingBaseUrl, Merchant);                        
+            return await _pushpay.GetRecurringPaymentsForAPayer(payerKey);
         }
 
-        public static string RecurringGivingRedirect(string PushpayAPIBaseUrl, string Merchant)
-        {
-            string givingLink = String.Format("{0}/{1}", PushpayAPIBaseUrl, Merchant);
-            string sr = String.Format("Org_{0}", "1");
-            string ru = Merchant;
-            string rcv = "false";
-            string redirectUrl = givingLink
-                + "?ru=" + ru
-                + "&sr=" + sr
-                + "&rcv=" + rcv;
+        //public string OneTimeRedirect(int OrgId)
+        //{
+        //    return $"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&rcv=false";
+        //}
 
-            return redirectUrl;
-        }                        
+        //public string OnePageRedirect()
+        //{
+        //    return $"{_givingLink}?rcv=false";
+        //}
+
+        //public string RecurringGivingRedirect(int PeopleId)
+        //{
+        //    PushPayResolver resolver = new PushPayResolver(_db, _pushpay);
+        //    string payerKey = resolver.ResolvePayerKey(PeopleId);
+        //    if (string.IsNullOrEmpty(payerKey))
+        //    {
+
+        //    }
+        //    //string givingLink = $"{PushpayGivingBaseUrl}/{Merchant}";
+        //    //string sr = $"Org_{organization.OrganizationId}";
+        //    //string ru = Merchant;
+        //    //string r = "Monthly";
+        //    //string redirectUrl = givingLink
+        //    //    + "?ru=" + ru
+        //    //    + "&sr=" + sr
+        //    //    + "&r=" + r;
+
+        //    return redirectUrl;
+        //}
     }
 }
