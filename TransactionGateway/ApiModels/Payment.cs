@@ -23,7 +23,7 @@ namespace TransactionGateway.ApiModels
         public string Source { get; set; }
         public string PaymentMethodType { get; set; }
         public object RecordedCheck { get; set; }
-        public object Card { get; set; }
+        public Card Card { get; set; }
     }
 
     internal class PaymentComparer : IEqualityComparer<Payment>

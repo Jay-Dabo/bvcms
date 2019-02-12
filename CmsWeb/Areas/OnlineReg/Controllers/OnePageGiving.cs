@@ -38,8 +38,7 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
 
                 if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.OnlineGiving())
                 {
-                    return Redirect(PushPayPayment.OnePageRedirect(ConfigurationManager.AppSettings["PushpayGivingLinkBase"],
-                            CurrentDatabase.GetSetting("PushpayMerchant", "")));
+                    return Redirect($"/Pushpay/OnePage/{m.Orgid}");
                 }
 
                 var pf = PaymentForm.CreatePaymentForm(m);

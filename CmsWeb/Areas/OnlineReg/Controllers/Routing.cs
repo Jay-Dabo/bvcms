@@ -20,9 +20,13 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
 #endif
             if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.OnlineGiving())
             {
-                return Redirect(PushPayPayment.OneTimeRedirect(ConfigurationManager.AppSettings["PushpayGivingLinkBase"],
-                        CurrentDatabase.GetSetting("PushpayMerchant", ""), m.user, m.org));
+                return Redirect($"/Pushpay/OneTime/{m.Orgid}");
             }
+
+            //if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.ManageGiving())
+            //{
+            //    return Redirect(PushPayPayment.RecurringGivingRedirect(m.org.OrganizationId));
+            //}
 
             var link = RouteExistingRegistration(m, pid);
             if (link.HasValue())

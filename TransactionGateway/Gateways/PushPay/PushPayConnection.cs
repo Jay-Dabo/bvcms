@@ -283,6 +283,14 @@ namespace TransactionGateway
         {
             return await GET<Payment>($"merchant/{merchantKey}/payment/{paymentToken}");
         }
+        public async Task<RecurringPayment> GetRecurringPayment(string merchantKey, string token)
+        {
+            return await GET<RecurringPayment>($"merchant/{merchantKey}/recurringpayment/{token}");
+        }
+        public async Task<RecurringPaymentList> GetRecurringPaymentsForAPayer(string personKey)
+        {
+            return await GET<RecurringPaymentList>($"person/{personKey}/recurringpayments");
+        }
         private async Task<T> GET<T>(string url) where T : BaseResponse
         {
             if (Util.IsDebug())

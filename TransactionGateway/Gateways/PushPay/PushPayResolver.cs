@@ -20,7 +20,7 @@ namespace TransactionGateway
         {
             _db = db;
             _pushpay = pushpay;
-        }          
+        }
 
         public ContributionFund ResolveFund(Fund fund)
         {
@@ -59,6 +59,11 @@ namespace TransactionGateway
                 _db.SubmitChanges();
                 return f;
             }
+        }
+
+        public string ResolvePayerKey(int PeopleId)
+        {
+            return  _db.PeopleExtras.Where(c => c.PeopleId == PeopleId && c.Field == "PushPayKey").FirstOrDefault().StrValue;
         }
 
         public int? ResolvePersonId(Payer payer)
@@ -202,7 +207,7 @@ namespace TransactionGateway
                 MiddleInitial = person.MiddleName[0].ToString(),
                 Last = person.LastName,
                 Suffix = person.SuffixCode,
-                Donate = 0,
+                Donate = null,
                 Amtdue = 0,
                 Amt = payment.Amount.Amount,
                 Emails = person.EmailAddress,
@@ -221,9 +226,18 @@ namespace TransactionGateway
                 Financeonly = null,
                 TransactionDate = Util.Now,
                 PaymentType = payment.PaymentMethodType == "CreditCard" ? PaymentType.CreditCard : PaymentType.Ach,
-                LastFourCC = null,
-                LastFourACH = null
+                LastFourCC =
+                    payment.PaymentMethodType == "CreditCard" ? payment.Card.Reference.Substring(payment.Card.Reference.Length - 4) : null,
+                LastFourACH = null,
+                Approved = true
             };
+
+            ti.TransactionPeople.Add(new TransactionPerson()
+            {
+                PeopleId = personId,
+                OrgId = orgId,
+                Amt = payment.Amount.Amount
+            });
 
             _db.Transactions.InsertOnSubmit(ti);
             _db.SubmitChanges();
