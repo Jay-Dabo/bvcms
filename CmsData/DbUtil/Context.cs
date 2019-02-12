@@ -1746,6 +1746,7 @@ This search uses multiple steps which cannot be duplicated in a single query.
             var cb = new SqlConnectionStringBuilder(ConnectionString) {IntegratedSecurity = false};
             var finance = CurrentUser?.InRole("Finance") ?? true;
             var dbname = Util.PickFirst(cb.InitialCatalog, $"CMS_{Host}");
+            cb.InitialCatalog = dbname;
             cb.UserID = (finance ? $"ro-{dbname}-finance" : $"ro-{dbname}");
             cb.Password = pw;
             cb.PersistSecurityInfo = true;
