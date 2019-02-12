@@ -43,7 +43,9 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
 
                 var pf = PaymentForm.CreatePaymentForm(m);
                 pf.AmtToPay = null;
-                pf.Type = pf.NoCreditCardsAllowed ? "B" : "C";
+
+                if (string.IsNullOrWhiteSpace(pf.Type))
+                    pf.Type = pf.NoCreditCardsAllowed ? "B" : "C";
 
 #if DEBUG
                 if (!pid.HasValue)

@@ -91,6 +91,20 @@ namespace CmsWeb
 
         protected void Application_BeginRequest(object sender, EventArgs e)
         {
+            if (IsRackspaceMonitoring())
+            {
+                Response.StatusCode = (int)HttpStatusCode.OK;
+                Response.ContentType = "text/plain";
+                Response.Write("OK");
+                CompleteRequest();
+                return;
+            }
+
+            if (HandleBvcmsDomain())
+            {
+                return;
+            }
+
             if (ShouldBypassProcessing())
             {
                 return;
@@ -102,44 +116,40 @@ namespace CmsWeb
                 return;
             }
 
-            //            MiniProfiler.Start();
-
             var r = DbUtil.CheckDatabaseExists(Util.CmsHost);
             var redirect = ViewExtensions2.DatabaseErrorUrl(r);
-#if DEBUG
-            if (r == DbUtil.CheckDatabaseResult.ServerNotFound)
+            if (Util.IsDebug())
             {
-                Response.Redirect(redirect);
-                return;
-            }
-            if (r == DbUtil.CheckDatabaseResult.DatabaseDoesNotExist && HttpContext.Current.Request.Url.LocalPath.EndsWith("/"))
-            {
-                var ret = DbUtil.CreateDatabase();
-                if (ret.HasValue())
+                if (r == DbUtil.CheckDatabaseResult.ServerNotFound)
                 {
-                    Response.Redirect($"/Errors/DatabaseCreationError.aspx?error={HttpUtility.UrlEncode(ret)}");
+                    Response.Redirect(redirect);
+                    return;
+                }
+                if (r == DbUtil.CheckDatabaseResult.DatabaseDoesNotExist && Request.IsLocal)
+                {
+                    var ret = DbUtil.CreateDatabase();
+                    if (ret.HasValue())
+                    {
+                        Response.Redirect($"/Errors/DatabaseCreationError.aspx?error={HttpUtility.UrlEncode(ret)}");
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                if (redirect != null)
+                {
+                    Response.Redirect(redirect);
                     return;
                 }
             }
-#else
-            if (redirect != null)
-            {
-                Response.Redirect(redirect);
-                return;
-            }
-#endif
-            try
-            {
-                Util.AdminMail = DbUtil.Db.Setting("AdminMail", "");
-                Util.DateSimulation = DbUtil.Db.Setting("UseDateSimulation");
-            }
-            catch (SqlException)
-            {
-                throw;
-                //Response.Redirect($"/Errors/DatabaseNotInitialized.aspx?dbname={Util.Host}");
-            }
 
-            var cul = DbUtil.Db.Setting("Culture", "en-US");
+            var db = DbUtil.Db;
+
+            Util.AdminMail = db.Setting("AdminMail", "");
+            Util.DateSimulation = db.Setting("UseDateSimulation");
+
+            var cul = db.Setting("Culture", "en-US");
             Util.Culture = cul;
             Thread.CurrentThread.CurrentUICulture = new CultureInfo(cul);
             Thread.CurrentThread.CurrentCulture = CultureInfo.CreateSpecificCulture(cul);
@@ -147,7 +157,7 @@ namespace CmsWeb
             var checkip = ConfigurationManager.AppSettings["CheckIp"];
             if (Util.IsHosted && checkip.HasValue())
             {
-                if (1 == DbUtil.Db.Connection.ExecuteScalar<int>(checkip, new { ip = Request.UserHostAddress }))
+                if (1 == db.Connection.ExecuteScalar<int>(checkip, new { ip = Request.UserHostAddress }))
                 {
                     Response.Redirect("/Errors/AccessDenied.htm");
                 }
@@ -156,10 +166,9 @@ namespace CmsWeb
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
         }
 
-
         protected void Application_EndRequest(object sender, EventArgs e)
         {
-            if (ShouldBypassProcessing())
+            if (IsRackspaceMonitoring() || ShouldBypassProcessing())
             {
                 return;
             }
@@ -311,17 +320,25 @@ namespace CmsWeb
             return false;
         }
 
-        //        private static bool IsAuthorizedToViewProfiler(HttpRequest request)
-        //        {
-        //            if (request.IsLocal)
-        //                return false;
-        //
-        //            var ctx = request.RequestContext.HttpContext;
-        //            if (ctx?.User == null)
-        //                return false;
-        //
-        //            return ctx.User.IsInRole("Developer") && DbUtil.Db.Setting("MiniProfileEnabled");
-        //        }
+        private bool HandleBvcmsDomain()
+        {
+            var bvcms = "bvcms.com";
+            if (Request.Url.Host.Contains(bvcms, true))
+            {
+                var url = Request.Url.OriginalString;
+                var dbExists = DbUtil.CheckDatabaseExists(Util.CmsHost) == DbUtil.CheckDatabaseResult.DatabaseExists;
+                var newBaseUrl = "tpsdb.com";
+                if (!dbExists)
+                {
+                    newBaseUrl = "touchpointsoftware.com";
+                    bvcms = Request.Url.Host;
+                }
+                Response.RedirectPermanent(url.Replace(bvcms, newBaseUrl));
+                CompleteRequest();
+                return true;
+            }
+            return false;
+        }
 
         private bool ShouldBypassProcessing()
         {
@@ -330,7 +347,13 @@ namespace CmsWeb
             return url.Contains("/Errors/", ignoreCase: true) ||
                 url.Contains("/Content/touchpoint/", ignoreCase: true) ||
                 url.Contains("healthcheck.txt", ignoreCase: true) ||
+                url.Contains("analytics.txt", ignoreCase: true) ||
                 url.Contains("favicon.ico", ignoreCase: true);
+        }
+
+        private bool IsRackspaceMonitoring()
+        {
+            return (Request.UserAgent ?? "").Contains("Rackspace Monitoring");
         }
     }
 }
