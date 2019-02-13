@@ -23,10 +23,10 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
                 return Redirect($"/Pushpay/OneTime/{m.Orgid}");
             }
 
-            //if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.ManageGiving())
-            //{
-            //    return Redirect(PushPayPayment.RecurringGivingRedirect(m.org.OrganizationId));
-            //}
+            if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay" && m.ManageGiving())
+            {
+                return Redirect($"/Pushpay/RecurringManagment/{pid}");
+            }
 
             var link = RouteExistingRegistration(m, pid);
             if (link.HasValue())

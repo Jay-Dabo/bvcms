@@ -1,16 +1,15 @@
+using CmsData;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using CmsData;
-using TransactionGateway.ApiModels;
-using TransactionGateway.Enums;
-using TransactionGateway.Entities;
-using System.Net.Http;
-using Newtonsoft.Json.Linq;
-using System.Net.Http.Headers;
-using UtilityExtensions;
 using System.Linq;
-using System.Web.Mvc;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading.Tasks;
+using TransactionGateway.ApiModels;
+using TransactionGateway.Entities;
+using TransactionGateway.Enums;
+using UtilityExtensions;
 using Organization = TransactionGateway.ApiModels.Organization;
 
 namespace TransactionGateway
@@ -287,9 +286,10 @@ namespace TransactionGateway
         {
             return await GET<RecurringPayment>($"merchant/{merchantKey}/recurringpayment/{token}");
         }
-        public async Task<RecurringPaymentList> GetRecurringPaymentsForAPayer(string personKey)
+        public async Task<IEnumerable<RecurringPayment>> GetRecurringPaymentsForAPayer(string personKey)
         {
-            return await GET<RecurringPaymentList>($"person/{personKey}/recurringpayments");
+            var result = await GET<RecurringPaymentList>($"person/{personKey}/recurringpayments");
+            return result.Items;
         }
         private async Task<T> GET<T>(string url) where T : BaseResponse
         {
@@ -301,7 +301,5 @@ namespace TransactionGateway
             T result = await client.Init(url).SetMethod(RequestMethodTypes.GET).Execute<T>();
             return result;
         }
-
     }
-
 }

@@ -4,6 +4,6 @@ namespace TransactionGateway.ApiModels
 {
     public class RecurringPaymentList : BaseResponse
     {
-        public List<RecurringPaymentList> Items { get; set; }
+        public List<RecurringPayment> Items { get; set; }
     }
 }

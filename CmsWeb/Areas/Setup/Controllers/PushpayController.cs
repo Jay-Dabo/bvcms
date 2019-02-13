@@ -1,22 +1,18 @@
 ﻿using CmsData;
+using CmsData.Codes;
+using CmsData.Registration;
 using CmsWeb.Common;
 using CmsWeb.Lifecycle;
-using CmsWeb.Pushpay.Entities;
-using Newtonsoft.Json.Linq;
+using CmsWeb.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Mvc;
-using UtilityExtensions;
 using TransactionGateway;
 using TransactionGateway.ApiModels;
-using CmsData.Finance;
-using CmsData.Codes;
-using CmsData.Registration;
+using UtilityExtensions;
 
 namespace CmsWeb.Areas.Setup.Controllers
 {
@@ -155,12 +151,27 @@ namespace CmsWeb.Areas.Setup.Controllers
             return Redirect($"{_givingLink}?rcv=false");
         }
 
-        [Route("~/Pushpay/RecurringGiving/{PeopleId:int}")]
-        public ActionResult RecurringGiving(int PeopleId)
+        [Route("~/Pushpay/RecurringManagment/{PeopleId:int}")]
+        public async Task<ActionResult> RecurringManagment(int PeopleId)
         {
+            PushPayPayment pushpayPayment = new PushPayPayment(_pushpay, CurrentDatabase);
             PushPayResolver resolver = new PushPayResolver(CurrentDatabase, _pushpay);
-            string PayerKey = resolver.ResolvePayerKey(PeopleId);
-            return Redirect($"{_givingLink}?rcv=false");
+            string payerKey = resolver.ResolvePayerKey(PeopleId);
+            IEnumerable<RecurringPayment> rpList = await pushpayPayment.GetRecurringPaymentsForAPayer(payerKey);
+            List<RecurringManagment> model = new List<RecurringManagment>();
+            foreach (var item in rpList)
+            {
+                RecurringManagment mg = new RecurringManagment()
+                {
+                    NextPayment = item.Schedule.NextPaymentDate,
+                    Amount = item.Amount.Amount,
+                    Fund = item.Fund.Name,
+                    Frequency = item.Schedule.Frequency,
+                    LinkToEdit = item.Links["donorviewrecurringpayment"].Href
+                };
+                model.Add(mg);                
+            }
+            return View(model);
         }
 
         [AllowAnonymous, Route("~/Pushpay/CompletePayment")]
