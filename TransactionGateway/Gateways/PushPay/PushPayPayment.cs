@@ -7,13 +7,13 @@ using TransactionGateway.ApiModels;
 
 namespace TransactionGateway
 {
-    public class PushPayPayment
+    public class PushpayPayment
     {
         private PushpayConnection _pushpay;
         private CMSDataContext _db;
         private string _merchantHandle;
 
-        public PushPayPayment(PushpayConnection Pushpay, CMSDataContext db)
+        public PushpayPayment(PushpayConnection Pushpay, CMSDataContext db)
         {
             _pushpay = Pushpay;
             _db = db;
@@ -38,6 +38,10 @@ namespace TransactionGateway
 
         public async Task<IEnumerable<RecurringPayment>> GetRecurringPaymentsForAPayer(string payerKey)
         {
+            if (payerKey == null)
+            {
+                return null;
+            }
             return await _pushpay.GetRecurringPaymentsForAPayer(payerKey);
         }
     }

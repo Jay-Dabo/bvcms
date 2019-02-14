@@ -24,12 +24,15 @@ namespace CmsWeb.Areas.Setup.Controllers
         private CMSDataContext CurrentDatabase => RequestManager.CurrentDatabase;
 
         private PushpayConnection _pushpay;
+        private PushpayPayment _pushpayPayment;
+        private PushpayResolver _resolver;
         private string _givingLink;
         private string _merchantHandle;
 
         public PushpayController(RequestManager requestManager)
         {
             RequestManager = requestManager;
+
             _pushpay = new PushpayConnection(
                 CurrentDatabase.GetSetting("PushPayAccessToken", ""),
                 CurrentDatabase.GetSetting("PushPayRefreshToken", ""),
@@ -40,6 +43,8 @@ namespace CmsWeb.Areas.Setup.Controllers
                 Configuration.Current.OAuth2TokenEndpoint,
                 Configuration.Current.TouchpointAuthServer,
                 Configuration.Current.OAuth2AuthorizeEndpoint);
+            _pushpayPayment = new PushpayPayment(_pushpay, CurrentDatabase);
+            _resolver = new PushpayResolver(_pushpay, CurrentDatabase);
 
             _merchantHandle = CurrentDatabase.Setting("PushpayMerchant", null);
             _givingLink = $"{Configuration.Current.PushpayGivingLinkBase}/{_merchantHandle}";
@@ -131,7 +136,6 @@ namespace CmsWeb.Areas.Setup.Controllers
                 CurrentDatabase.SubmitChanges();
                 DbUtil.LogActivity($"Edit Setting {idRefreshToken} to {_rt}", userId: Util.UserId);
             }
-
             return RedirectToAction("Finish");
         }
 
@@ -139,10 +143,11 @@ namespace CmsWeb.Areas.Setup.Controllers
         public ActionResult Finish()
         { return View(); }
 
-        [Route("~/Pushpay/OneTime/{OrgId:int}")]
-        public ActionResult OneTime(int OrgId)
+        [Route("~/Pushpay/OneTime/{PeopleId:int}/{OrgId:int}")]
+        public ActionResult OneTime(int PeopleId, int OrgId)
         {
-            return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&rcv=false");
+            string mobile = CurrentDatabase.People.Where(p => p.PeopleId == PeopleId).FirstOrDefault().CellPhone;
+            return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&rcv=false&up={mobile}");
         }
 
         [Route("~/Pushpay/OnePage")]
@@ -151,13 +156,25 @@ namespace CmsWeb.Areas.Setup.Controllers
             return Redirect($"{_givingLink}?rcv=false");
         }
 
-        [Route("~/Pushpay/RecurringManagment/{PeopleId:int}")]
-        public async Task<ActionResult> RecurringManagment(int PeopleId)
+        [Route("~/Pushpay/NewRecurringGiving/{PeopleId:int}/{OrgId:int}")]
+        public ActionResult NewRecurringGiving(int PeopleId, int OrgId)
         {
-            PushPayPayment pushpayPayment = new PushPayPayment(_pushpay, CurrentDatabase);
-            PushPayResolver resolver = new PushPayResolver(CurrentDatabase, _pushpay);
-            string payerKey = resolver.ResolvePayerKey(PeopleId);
-            IEnumerable<RecurringPayment> rpList = await pushpayPayment.GetRecurringPaymentsForAPayer(payerKey);
+            string mobile = CurrentDatabase.People.Where(p => p.PeopleId == PeopleId).FirstOrDefault().CellPhone;
+            return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&r=monthly&up={mobile}");
+        }
+
+        [Route("~/Pushpay/RecurringManagment/{PeopleId:int}/{OrgId:int}")]
+        public async Task<ActionResult> RecurringManagment(int PeopleId, int OrgId)
+        {
+            ViewBag.PeopleId = PeopleId;
+            ViewBag.OrgId = OrgId;
+            string payerKey = _resolver.ResolvePayerKey(PeopleId);
+            IEnumerable<RecurringPayment> rpList = await _pushpayPayment.GetRecurringPaymentsForAPayer(payerKey);
+            if (rpList == null || rpList.Count() == 0)
+            {
+                string mobile = CurrentDatabase.People.Where(p => p.PeopleId == PeopleId).FirstOrDefault().CellPhone;
+                return NewRecurringGiving(PeopleId, OrgId);
+            }
             List<RecurringManagment> model = new List<RecurringManagment>();
             foreach (var item in rpList)
             {
@@ -169,7 +186,7 @@ namespace CmsWeb.Areas.Setup.Controllers
                     Frequency = item.Schedule.Frequency,
                     LinkToEdit = item.Links["donorviewrecurringpayment"].Href
                 };
-                model.Add(mg);                
+                model.Add(mg);
             }
             return View(model);
         }
@@ -182,41 +199,40 @@ namespace CmsWeb.Areas.Setup.Controllers
                 int orgId = Int32.Parse(sr.Substring(4));
                 SetHeaders2(orgId);
                 ViewBag.OrgId = orgId;
-                PushPayPayment pushpayPayment = new PushPayPayment(_pushpay, CurrentDatabase);
-                PushPayResolver resolver = new PushPayResolver(CurrentDatabase, _pushpay);
 
                 int ManageGivingOrg = (from o in CurrentDatabase.Organizations
                                        where o.RegistrationTypeId == RegistrationTypeCode.ManageGiving
                                        select o.OrganizationId).FirstOrDefault();
                 if (ManageGivingOrg == orgId)
-                {                                        
-                    RecurringPayment recurringPayment = await pushpayPayment.GetRecurringPayment(paymentToken);
+                {
+                    RecurringPayment recurringPayment = await _pushpayPayment.GetRecurringPayment(paymentToken);
                     if (recurringPayment.Schedule != null)
                     {
+                        int? PersonId = _resolver.ResolvePersonId(recurringPayment.Payer);
                         ViewBag.Message = "Thanks for set up your recurring giving.";
                         return View();
                     }
                 }
 
-                Payment payment = await pushpayPayment.GetPayment(paymentToken);
+                Payment payment = await _pushpayPayment.GetPayment(paymentToken);
 
-                if (payment != null && !resolver.TransactionAlreadyImported(payment))
+                if (payment != null && !_resolver.TransactionAlreadyImported(payment))
                 {
                     // determine the batch to put the payment in
                     BundleHeader bundle;
                     if (payment.Settlement?.Key.HasValue() == true)
                     {
-                        bundle = await resolver.ResolveSettlement(payment.Settlement);
+                        bundle = await _resolver.ResolveSettlement(payment.Settlement);
                     }
                     else
                     {
                         // create a new bundle for each payment not part of a PushPay batch or settlement
-                        bundle = resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
+                        bundle = _resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
                     }
-                    int? PersonId = resolver.ResolvePersonId(payment.Payer);
-                    ContributionFund fund = resolver.ResolveFund(payment.Fund);
-                    Contribution contribution = resolver.ResolvePayment(payment, fund, PersonId, bundle);
-                    Transaction transaction = resolver.ResolveTransaction(payment, PersonId.Value, orgId);
+                    int? PersonId = _resolver.ResolvePersonId(payment.Payer);
+                    ContributionFund fund = _resolver.ResolveFund(payment.Fund);
+                    Contribution contribution = _resolver.ResolvePayment(payment, fund, PersonId, bundle);
+                    Transaction transaction = _resolver.ResolveTransaction(payment, PersonId.Value, orgId);
                 }
                 ViewBag.Message = "Thank you, your transaction is complete for Online Giving.";
                 return View();

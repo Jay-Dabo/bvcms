@@ -9,14 +9,14 @@ using UtilityExtensions;
 
 namespace TransactionGateway
 {
-    public class PushPayResolver
+    public class PushpayResolver
     {
         private CMSDataContext _db;
         private PushpayConnection _pushpay;
         private const string PushPayKey = "PushPayKey";
         private const string PushPayTransactionNum = "PushPay Transaction #";
 
-        public PushPayResolver(CMSDataContext db, PushpayConnection pushpay)
+        public PushpayResolver(PushpayConnection pushpay, CMSDataContext db)
         {
             _db = db;
             _pushpay = pushpay;
@@ -63,7 +63,9 @@ namespace TransactionGateway
 
         public string ResolvePayerKey(int PeopleId)
         {
-            return  _db.PeopleExtras.Where(c => c.PeopleId == PeopleId && c.Field == "PushPayKey").FirstOrDefault().StrValue;
+            PeopleExtra pe = _db.PeopleExtras.Where(c => c.PeopleId == PeopleId && c.Field == "PushPayKey").FirstOrDefault();
+            if (pe == null) return null;                     
+            return  pe.StrValue;
         }
 
         public int? ResolvePersonId(Payer payer)

@@ -2,8 +2,8 @@
 @model IEnumerable<RecurringManagment>
 
 @{
-    ViewBag.Title = "Pushpay Recurring Givings";
-    ViewBag.PageHeader = "Pushpay Recurring Givings";
+    ViewBag.Title = "Pushpay Recurring Giving";
+    ViewBag.PageHeader = "Pushpay Recurring Giving";
     Layout = ViewExtensions2.TouchPointLayout();
 }
 <div class="box box-responsive">
@@ -11,11 +11,11 @@
         <div class="table-responsive">
             <table class="table table-striped">
                 <thead>
-                    <tr>                        
+                    <tr>
                         <th>Next Date</th>
                         <th>Amount</th>
                         <th>Repeats</th>
-                        <th>Fund</th>                        
+                        <th>Fund</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -25,7 +25,7 @@
                         <tr>
                             <td>@rg.NextPayment</td>
                             <td>@rg.Amount</td>
-                            <td>@rg.Frequency</td>                                                        
+                            <td>@rg.Frequency</td>
                             <td>@rg.Fund</td>
                             <td>
                                 <a class="btn btn-sm btn-primary" target="_blank" href="@rg.LinkToEdit"><i class="fa fa-pencil"></i>&ensp;Edit</a>
@@ -35,5 +35,8 @@
                 </tbody>
             </table>
         </div>
+    </div>
+    <div class="box-content">
+        <a class="btn btn-sm btn-success" target="_blank" href="/Pushpay/NewRecurringGiving/@ViewBag.PeopleId/@ViewBag.OrgId"><i class="fa fa-plus-circle"></i>&ensp;Create New Recurring Giving</a>
     </div>
 </div>
