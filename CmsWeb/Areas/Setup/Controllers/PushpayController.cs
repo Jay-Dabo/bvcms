@@ -305,12 +305,12 @@ namespace CmsWeb.Areas.Setup.Controllers
             //    //var r = or.FinishRegistration(transaction);
             //    //return View(r.View, r.Model);
             //}
-            else
-            {
+            //else
+            //{
                 ViewBag.Message = "Something went wrong";
                 CurrentDatabase.LogActivity($"No datum founded with id: {datumId}");
                 return View("~/Views/Shared/PageError.cshtml");
-            }
+            //}
         }
 
         private void SetHeaders2(int id)
