@@ -351,7 +351,6 @@ namespace PushPay
             return PersonId;
         }
 
-
         private ContributionFund ResolveFund(Fund fund)
         {
             // take a pushpay fund and find or create a touchpoint fund

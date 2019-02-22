@@ -192,7 +192,6 @@ namespace TransactionGateway
             return result;
         }
 
-
         /// <summary>
         ///     Creates our client connection to the API
         /// </summary>
