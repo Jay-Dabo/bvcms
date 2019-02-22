@@ -1,6 +1,7 @@
 ﻿using CmsData;
 using CmsData.Codes;
 using CmsData.Registration;
+using CmsWeb.Areas.OnlineReg.Models;
 using CmsWeb.Common;
 using CmsWeb.Lifecycle;
 using CmsWeb.Models;
@@ -17,22 +18,16 @@ using UtilityExtensions;
 namespace CmsWeb.Areas.Setup.Controllers
 {
     [RouteArea("Setup", AreaPrefix = "Pushpay")]
-    public class PushpayController : Controller
+    public class PushpayController : CMSBaseController
     {
-        //todo: Inheritance chain
-        private readonly RequestManager RequestManager;
-        private CMSDataContext CurrentDatabase => RequestManager.CurrentDatabase;
-
         private PushpayConnection _pushpay;
         private PushpayPayment _pushpayPayment;
         private PushpayResolver _resolver;
         private string _givingLink;
         private string _merchantHandle;
 
-        public PushpayController(RequestManager requestManager)
+        public PushpayController(RequestManager requestManager) : base(requestManager)
         {
-            RequestManager = requestManager;
-
             _pushpay = new PushpayConnection(
                 CurrentDatabase.GetSetting("PushPayAccessToken", ""),
                 CurrentDatabase.GetSetting("PushPayRefreshToken", ""),
@@ -146,7 +141,7 @@ namespace CmsWeb.Areas.Setup.Controllers
         [Route("~/Pushpay/OneTime/{PeopleId:int}/{OrgId:int}")]
         public ActionResult OneTime(int PeopleId, int OrgId)
         {
-            string mobile = CurrentDatabase.People.Where(p => p.PeopleId == PeopleId).FirstOrDefault().CellPhone;
+            string mobile = CurrentDatabase.People.SingleOrDefault(p => p.PeopleId == PeopleId).CellPhone;
             return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&rcv=false&up={mobile}");
         }
 
@@ -159,7 +154,7 @@ namespace CmsWeb.Areas.Setup.Controllers
         [Route("~/Pushpay/NewRecurringGiving/{PeopleId:int}/{OrgId:int}")]
         public ActionResult NewRecurringGiving(int PeopleId, int OrgId)
         {
-            string mobile = CurrentDatabase.People.Where(p => p.PeopleId == PeopleId).FirstOrDefault().CellPhone;
+            string mobile = CurrentDatabase.People.SingleOrDefault(p => p.PeopleId == PeopleId).CellPhone;
             return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=Org_{OrgId}&r=monthly&up={mobile}");
         }
 
@@ -172,7 +167,7 @@ namespace CmsWeb.Areas.Setup.Controllers
             IEnumerable<RecurringPayment> rpList = await _pushpayPayment.GetRecurringPaymentsForAPayer(payerKey);
             if (rpList == null || rpList.Count() == 0)
             {
-                string mobile = CurrentDatabase.People.Where(p => p.PeopleId == PeopleId).FirstOrDefault().CellPhone;
+                string mobile = CurrentDatabase.People.SingleOrDefault(p => p.PeopleId == PeopleId).CellPhone;
                 return NewRecurringGiving(PeopleId, OrgId);
             }
             List<RecurringManagment> model = new List<RecurringManagment>();
@@ -191,51 +186,55 @@ namespace CmsWeb.Areas.Setup.Controllers
             return View(model);
         }
 
+        [Route("~/Pushpay/Registration/{DatumId:int}")]
+        public ActionResult Registration(int DatumId)
+        {
+            OnlineRegModel or = new OnlineRegModel();
+            decimal Amount = 0;
+            string mobile = string.Empty;
+            RegistrationDatum datum = CurrentDatabase.RegistrationDatas.SingleOrDefault(d => d.Id == DatumId);
+            if (datum != null)
+            {
+                or = Util.DeSerialize<OnlineRegModel>(datum.Data);
+                Amount = or.TotalAmount();
+                mobile = CurrentDatabase.People.SingleOrDefault(p => p.PeopleId == or.UserPeopleId).CellPhone;
+            }
+            else
+            {
+                ViewBag.Message = "Something went wrong";
+                CurrentDatabase.LogActivity($"No datum founded with id: {DatumId}");
+                return View("~/Views/Shared/PageError.cshtml");
+            }
+            return Redirect($"{_givingLink}?ru={_merchantHandle}&sr=dat_{DatumId}&rcv=false&up={mobile}&a={Amount}&al=true&fndv=lock");
+        }
+
         [AllowAnonymous, Route("~/Pushpay/CompletePayment")]
         public async Task<ActionResult> CompletePayment(string paymentToken, string sr)
         {
             try
             {
+                bool isRegistration = sr.Substring(0, 3) == "dat";
+                if (isRegistration)
+                {
+                    return await RegistrationProcess(paymentToken, Int32.Parse(sr.Substring(4)));
+                }
                 int orgId = Int32.Parse(sr.Substring(4));
                 SetHeaders2(orgId);
                 ViewBag.OrgId = orgId;
 
-                int ManageGivingOrg = (from o in CurrentDatabase.Organizations
-                                       where o.RegistrationTypeId == RegistrationTypeCode.ManageGiving
-                                       select o.OrganizationId).FirstOrDefault();
-                if (ManageGivingOrg == orgId)
+                CmsData.Organization org = CurrentDatabase.Organizations.SingleOrDefault(o => o.OrganizationId == orgId);
+
+                if (org.RegistrationTypeId == RegistrationTypeCode.ManageGiving)
                 {
-                    RecurringPayment recurringPayment = await _pushpayPayment.GetRecurringPayment(paymentToken);
-                    if (recurringPayment.Schedule != null)
-                    {
-                        int? PersonId = _resolver.ResolvePersonId(recurringPayment.Payer);
-                        ViewBag.Message = "Thanks for set up your recurring giving.";
-                        return View();
-                    }
+                    return await RecurringProcess(paymentToken);
                 }
 
-                Payment payment = await _pushpayPayment.GetPayment(paymentToken);
-
-                if (payment != null && !_resolver.TransactionAlreadyImported(payment))
+                if (org.RegistrationTypeId == RegistrationTypeCode.OnlineGiving)
                 {
-                    // determine the batch to put the payment in
-                    BundleHeader bundle;
-                    if (payment.Settlement?.Key.HasValue() == true)
-                    {
-                        bundle = await _resolver.ResolveSettlement(payment.Settlement);
-                    }
-                    else
-                    {
-                        // create a new bundle for each payment not part of a PushPay batch or settlement
-                        bundle = _resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
-                    }
-                    int? PersonId = _resolver.ResolvePersonId(payment.Payer);
-                    ContributionFund fund = _resolver.ResolveFund(payment.Fund);
-                    Contribution contribution = _resolver.ResolvePayment(payment, fund, PersonId, bundle);
-                    Transaction transaction = _resolver.ResolveTransaction(payment, PersonId.Value, orgId);
+                    return await OneTimeProcess(paymentToken, orgId);
                 }
-                ViewBag.Message = "Thank you, your transaction is complete for Online Giving.";
-                return View();
+
+                throw new Exception("Registration Type is not supported for Pushpay");
             }
             catch (Exception ex)
             {
@@ -245,6 +244,74 @@ namespace CmsWeb.Areas.Setup.Controllers
             }
         }
 
+        private async Task<ActionResult> OneTimeProcess(string paymentToken, int orgId)
+        {
+            Payment payment = await _pushpayPayment.GetPayment(paymentToken);
+
+            if (payment != null && !_resolver.TransactionAlreadyImported(payment))
+            {
+                // determine the batch to put the payment in
+                BundleHeader bundle;
+                if (payment.Settlement?.Key.HasValue() == true)
+                {
+                    bundle = await _resolver.ResolveSettlement(payment.Settlement);
+                }
+                else
+                {
+                    // create a new bundle for each payment not part of a PushPay batch or settlement
+                    bundle = _resolver.CreateBundle(payment.CreatedOn.ToLocalTime(), payment.Amount.Amount, null, null, payment.TransactionId, BundleReferenceIdTypeCode.PushPayStandaloneTransaction);
+                }
+                int? PersonId = _resolver.ResolvePersonId(payment.Payer);
+                ContributionFund fund = _resolver.ResolveFund(payment.Fund);
+                Contribution contribution = _resolver.ResolvePayment(payment, fund, PersonId, bundle);
+                Transaction transaction = _resolver.ResolveTransaction(payment, PersonId.Value, orgId, "Online Giving");
+            }
+            ViewBag.Message = "Thank you, your transaction is complete for Online Giving.";
+            return View();
+        }
+
+        private async Task<ActionResult> RecurringProcess(string paymentToken)
+        {
+            RecurringPayment recurringPayment = await _pushpayPayment.GetRecurringPayment(paymentToken);
+            if (recurringPayment?.Schedule != null)
+            {
+                int? PersonId = _resolver.ResolvePersonId(recurringPayment.Payer);
+                ViewBag.Message = "Thanks for set up your recurring giving.";
+                return View();
+            }
+            else
+            {
+                ViewBag.Message = "Something went wrong";
+                CurrentDatabase.LogActivity($"Recurring Giving not founded with key: {paymentToken}");
+                return View("~/Views/Shared/PageError.cshtml");
+            }
+        }
+
+        private async Task<ActionResult> RegistrationProcess(string paymentToken, int datumId)
+        {
+            //System.Web.HttpContext.Current = CurrentHttpContext;
+            OnlineRegModel or = new OnlineRegModel();
+            RegistrationDatum datum = CurrentDatabase.RegistrationDatas.SingleOrDefault(d => d.Id == datumId);
+
+            //if (payment != null && !_resolver.TransactionAlreadyImported(payment))
+            //{
+            //}
+            //if (datum != null)
+            //{
+            //    or = Util.DeSerialize<OnlineRegModel>(datum.Data);
+            //    //Payment payment = await _pushpayPayment.GetPayment(paymentToken);
+            //    //Transaction transaction = _resolver.ResolveTransaction(payment, or.UserPeopleId.Value, or.Orgid.Value, "Registration");
+            //    //System.Web.HttpContext.Current = CurrentHttpContext;
+            //    //var r = or.FinishRegistration(transaction);
+            //    //return View(r.View, r.Model);
+            //}
+            else
+            {
+                ViewBag.Message = "Something went wrong";
+                CurrentDatabase.LogActivity($"No datum founded with id: {datumId}");
+                return View("~/Views/Shared/PageError.cshtml");
+            }
+        }
 
         private void SetHeaders2(int id)
         {

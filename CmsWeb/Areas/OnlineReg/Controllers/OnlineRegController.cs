@@ -308,6 +308,10 @@ namespace CmsWeb.Areas.OnlineReg.Controllers
                 case RouteType.Terms:
                     return View(ret.View, m);
                 case RouteType.Payment:
+                    if (CurrentDatabase.GetSetting("TransactionGateway", "") == "Pushpay")
+                    {
+                        return Redirect($"/Pushpay/Registration/{m.DatumId}");
+                    }
                     return View(ret.View, ret.PaymentForm);
             }
             m.Log("BadRouteOnCompleteRegistration");

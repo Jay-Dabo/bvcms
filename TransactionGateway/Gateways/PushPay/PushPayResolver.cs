@@ -199,11 +199,12 @@ namespace TransactionGateway
             return bh;
         }
 
-        public Transaction ResolveTransaction(Payment payment, int personId, int orgId)
+        public Transaction ResolveTransaction(Payment payment, int personId, int orgId, string des)
         {
             Person person = _db.LoadPersonById(personId);
             var ti = new Transaction
             {
+                TransactionId = payment.TransactionId,
                 Name = person.Name,
                 First = person.FirstName,
                 MiddleInitial = person.MiddleName[0].ToString(),
@@ -214,7 +215,7 @@ namespace TransactionGateway
                 Amt = payment.Amount.Amount,
                 Emails = person.EmailAddress,
                 Testing = false,
-                Description = string.Format("Pushpay payment id {0}", payment.TransactionId),
+                Description = $"Pushpay {des}",
                 OrgId = orgId,
                 Url = null,
                 Address = person.AddressLineOne,

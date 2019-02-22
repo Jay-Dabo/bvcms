@@ -44,5 +44,22 @@ namespace TransactionGateway
             }
             return await _pushpay.GetRecurringPaymentsForAPayer(payerKey);
         }
+
+        public async Task<Fund> GetFundForRegistration(string OrganizationName)
+        {
+            var pushpayOrganizations = await _pushpay.GetOrganizations();
+            Fund fund = new Fund();
+            foreach (var item in pushpayOrganizations)
+            {
+                var key = item.Key;
+                var funds = await _pushpay.GetFundsForOrganization(key);
+                fund = funds.Items.Where(f => f.Name == OrganizationName).FirstOrDefault();
+                if (fund == null)
+                {
+                    //create fund                    
+                }
+            }
+            return fund;
+        }
     }
 }

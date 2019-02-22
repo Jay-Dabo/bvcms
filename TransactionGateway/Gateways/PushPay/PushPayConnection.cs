@@ -224,6 +224,12 @@ namespace TransactionGateway
             return await GET<FundList>($"merchant/{merchantKey}/funds");
         }
 
+        public async Task<FundList> GetFundsForOrganization(string organizationKey)
+        {
+            //GET /v1/organization/{organizationKey}/funds
+            return await GET<FundList>($"organization/{organizationKey}/funds");
+        }
+
         public async Task<PaymentList> GetPaymentsForBatch(string merchantKey, string batchKey, int page = 0)
         {
             // GET /v1/merchant/{merchantKey}/batch/{batchKey}/payments
